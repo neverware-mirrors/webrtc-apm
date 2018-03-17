@@ -10,7 +10,7 @@
 FROM=$1
 TO=$2
 
-OPTIONS=(-av --delete --filter="P module.mk")
+OPTIONS=(-av --delete --exclude="*/test" --filter="P module.mk")
 
 rsync "${OPTIONS[@]}" ${FROM}/rtc_base ${TO}
 rsync "${OPTIONS[@]}" ${FROM}/audio ${TO}
