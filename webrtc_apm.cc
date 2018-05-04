@@ -13,15 +13,180 @@
 extern "C" {
 #include "webrtc_apm.h"
 
+int convert_to_aec3_config(
+		const struct aec_config *config,
+		webrtc::EchoCanceller3Config *aec3_config)
+{
+	aec3_config->delay = {
+		config->delay.default_delay,
+		config->delay.down_sampling_factor,
+		config->delay.num_filters,
+		config->delay.api_call_jitter_blocks,
+		config->delay.min_echo_path_delay_blocks,
+		config->delay.delay_headroom_blocks,
+		config->delay.hysteresis_limit_1_blocks,
+		config->delay.hysteresis_limit_2_blocks,
+		config->delay.skew_hysteresis_blocks
+	};
+	aec3_config->filter.main = {
+		config->filter.main.length_blocks,
+		config->filter.main.leakage_converged,
+		config->filter.main.leakage_diverged,
+		config->filter.main.error_floor,
+		config->filter.main.noise_gate
+	};
+	aec3_config->filter.shadow = {
+		config->filter.shadow.length_blocks,
+		config->filter.shadow.rate,
+		config->filter.shadow.noise_gate
+	};
+	aec3_config->filter.main_initial = {
+		config->filter.main_initial.length_blocks,
+		config->filter.main_initial.leakage_converged,
+		config->filter.main_initial.leakage_diverged,
+		config->filter.main_initial.error_floor,
+		config->filter.main_initial.noise_gate
+	};
+	aec3_config->filter.shadow_initial = {
+		config->filter.shadow_initial.length_blocks,
+		config->filter.shadow_initial.rate,
+		config->filter.shadow_initial.noise_gate
+	};
+	aec3_config->filter.config_change_duration_blocks =
+		config->filter.config_change_duration_blocks;
+	aec3_config->erle = {
+		config->erle.min,
+		config->erle.max_l,
+		config->erle.max_h,
+	};
+	aec3_config->ep_strength = {
+		config->ep_strength.lf,
+		config->ep_strength.mf,
+		config->ep_strength.hf,
+		config->ep_strength.default_len,
+		static_cast<bool>(config->ep_strength.echo_can_saturate),
+		static_cast<bool>(config->ep_strength.bounded_erl)
+	};
+
+	aec3_config->gain_mask.m1 = config->gain_mask.m1;
+	aec3_config->gain_mask.m2 = config->gain_mask.m2;
+	aec3_config->gain_mask.m3 = config->gain_mask.m3;
+	aec3_config->gain_mask.m5 = config->gain_mask.m5;
+	aec3_config->gain_mask.m6 = config->gain_mask.m6;
+	aec3_config->gain_mask.m7 = config->gain_mask.m7;
+	aec3_config->gain_mask.m8 = config->gain_mask.m8;
+	aec3_config->gain_mask.m9 = config->gain_mask.m9;
+	aec3_config->gain_mask.gain_curve_offset =
+			config->gain_mask.gain_curve_offset;
+	aec3_config->gain_mask.gain_curve_slope =
+			config->gain_mask.gain_curve_slope;
+	aec3_config->gain_mask.temporal_masking_lf =
+			config->gain_mask.temporal_masking_lf;
+	aec3_config->gain_mask.temporal_masking_hf =
+			config->gain_mask.temporal_masking_hf;
+	aec3_config->gain_mask.temporal_masking_lf_bands =
+			config->gain_mask.temporal_masking_lf_bands;
+
+	aec3_config->echo_audibility = {
+		config->echo_audibility.low_render_limit,
+		config->echo_audibility.normal_render_limit,
+		config->echo_audibility.floor_power,
+		config->echo_audibility.audibility_threshold_lf,
+		config->echo_audibility.audibility_threshold_mf,
+		config->echo_audibility.audibility_threshold_hf,
+		static_cast<bool>(
+			config->echo_audibility.use_stationary_properties)
+	};
+	aec3_config->render_levels = {
+		config->render_levels.active_render_limit,
+		config->render_levels.poor_excitation_render_limit,
+	};
+	aec3_config->gain_updates.low_noise = {
+		config->gain_updates.low_noise.max_inc,
+		config->gain_updates.low_noise.max_dec,
+		config->gain_updates.low_noise.rate_inc,
+		config->gain_updates.low_noise.rate_dec,
+		config->gain_updates.low_noise.min_inc,
+		config->gain_updates.low_noise.min_dec,
+	};
+	aec3_config->gain_updates.initial = {
+		config->gain_updates.initial.max_inc,
+		config->gain_updates.initial.max_dec,
+		config->gain_updates.initial.rate_inc,
+		config->gain_updates.initial.rate_dec,
+		config->gain_updates.initial.min_inc,
+		config->gain_updates.initial.min_dec,
+	};
+	aec3_config->gain_updates.normal = {
+		config->gain_updates.normal.max_inc,
+		config->gain_updates.normal.max_dec,
+		config->gain_updates.normal.rate_inc,
+		config->gain_updates.normal.rate_dec,
+		config->gain_updates.normal.min_inc,
+		config->gain_updates.normal.min_dec,
+	};
+	aec3_config->gain_updates.saturation = {
+		config->gain_updates.saturation.max_inc,
+		config->gain_updates.saturation.max_dec,
+		config->gain_updates.saturation.rate_inc,
+		config->gain_updates.saturation.rate_dec,
+		config->gain_updates.saturation.min_inc,
+		config->gain_updates.saturation.min_dec,
+	};
+	aec3_config->gain_updates.nonlinear = {
+		config->gain_updates.nonlinear.max_inc,
+		config->gain_updates.nonlinear.max_dec,
+		config->gain_updates.nonlinear.rate_inc,
+		config->gain_updates.nonlinear.rate_dec,
+		config->gain_updates.nonlinear.min_inc,
+		config->gain_updates.nonlinear.min_dec,
+	};
+	aec3_config->gain_updates.floor_first_increase =
+		config->gain_updates.floor_first_increase;
+
+	aec3_config->echo_removal_control = {
+		{
+		config->echo_removal_control.gain_rampup.first_non_zero_gain,
+		config->echo_removal_control.gain_rampup.non_zero_gain_blocks,
+		config->echo_removal_control.gain_rampup.full_gain_blocks
+		},
+		static_cast<bool>(config->echo_removal_control.has_clock_drift)
+	};
+
+	aec3_config->echo_model = {
+		config->echo_model.noise_floor_hold,
+		config->echo_model.min_noise_floor_power,
+		config->echo_model.stationary_gate_slope,
+		config->echo_model.noise_gate_power,
+		config->echo_model.noise_gate_slope,
+		config->echo_model.render_pre_window_size,
+		config->echo_model.render_post_window_size,
+		config->echo_model.nonlinear_hold,
+		config->echo_model.nonlinear_release
+	};
+
+
+	return 0;
+}
+
 webrtc_apm webrtc_apm_create(unsigned int num_channels,
-			unsigned int frame_rate,
-			unsigned int enable_echo_cancellation)
+			     unsigned int frame_rate,
+			     struct aec_config *config)
 {
 	int err;
 	webrtc::AudioProcessing *apm;
 	webrtc::AudioProcessing::ChannelLayout channel_layout;
 	webrtc::AudioProcessingBuilder apm_builder;
-	std::unique_ptr<webrtc::EchoControlFactory> ec3_factory(new webrtc::EchoCanceller3Factory());
+	webrtc::EchoCanceller3Config aec3_config;
+	std::unique_ptr<webrtc::EchoControlFactory> ec3_factory;
+
+	if (config) {
+		convert_to_aec3_config(config, &aec3_config);
+		ec3_factory.reset(
+			new webrtc::EchoCanceller3Factory(aec3_config));
+	} else {
+		ec3_factory.reset(new webrtc::EchoCanceller3Factory());
+	}
 
 	switch (num_channels) {
 		case 1:
