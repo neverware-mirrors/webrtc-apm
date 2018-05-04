@@ -75,10 +75,11 @@ const AudioCodecSpec kCodecSpecs[] = {
 
 class MockLimitObserver : public BitrateAllocator::LimitObserver {
  public:
-  MOCK_METHOD3(OnAllocationLimitsChanged,
+  MOCK_METHOD4(OnAllocationLimitsChanged,
                void(uint32_t min_send_bitrate_bps,
                     uint32_t max_padding_bitrate_bps,
-                    uint32_t total_bitrate_bps));
+                    uint32_t total_bitrate_bps,
+                    bool has_packet_feedback));
 };
 
 std::unique_ptr<MockAudioEncoder> SetupAudioEncoderMock(
@@ -227,9 +228,6 @@ struct ConfigHelper {
     EXPECT_CALL(*channel_proxy_, SetRtcEventLog(testing::NotNull())).Times(1);
     EXPECT_CALL(*channel_proxy_, SetRtcEventLog(testing::IsNull()))
         .Times(1);  // Destructor resets the event log
-    EXPECT_CALL(*channel_proxy_, SetRtcpRttStats(&rtcp_rtt_stats_)).Times(1);
-    EXPECT_CALL(*channel_proxy_, SetRtcpRttStats(testing::IsNull()))
-        .Times(1);  // Destructor resets the rtt stats.
   }
 
   void SetupMockForSetupSendCodec(bool expect_set_encoder_call) {

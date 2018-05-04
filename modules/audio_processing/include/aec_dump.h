@@ -16,11 +16,10 @@
 #include <vector>
 
 #include "api/array_view.h"
+#include "api/audio/audio_frame.h"
 #include "modules/audio_processing/include/audio_frame_view.h"
 
 namespace webrtc {
-
-class AudioFrame;
 
 // Struct for passing current config from APM without having to
 // include protobuf headers.
@@ -51,6 +50,8 @@ struct InternalAPMConfig {
   bool transient_suppression_enabled = false;
   bool intelligibility_enhancer_enabled = false;
   bool noise_robust_agc_enabled = false;
+  bool pre_amplifier_enabled = false;
+  float pre_amplifier_fixed_gain_factor = 1.f;
   std::string experiments_description = "";
 };
 

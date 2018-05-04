@@ -97,9 +97,11 @@ aec3_CXX_OBJECTS = \
 	modules/audio_processing/aec3/block_processor.o \
 	modules/audio_processing/aec3/block_processor_metrics.o \
 	modules/audio_processing/aec3/cascaded_biquad_filter.o \
+	modules/audio_processing/aec3/coherence_gain.o \
 	modules/audio_processing/aec3/comfort_noise_generator.o \
 	modules/audio_processing/aec3/decimator.o \
 	modules/audio_processing/aec3/downsampled_render_buffer.o \
+	modules/audio_processing/aec3/echo_audibility.o \
 	modules/audio_processing/aec3/echo_canceller3.o \
 	modules/audio_processing/aec3/echo_path_delay_estimator.o \
 	modules/audio_processing/aec3/echo_path_variability.o \
@@ -108,12 +110,12 @@ aec3_CXX_OBJECTS = \
 	modules/audio_processing/aec3/erl_estimator.o \
 	modules/audio_processing/aec3/erle_estimator.o \
 	modules/audio_processing/aec3/fft_buffer.o \
+	modules/audio_processing/aec3/filter_analyzer.o \
 	modules/audio_processing/aec3/frame_blocker.o \
 	modules/audio_processing/aec3/main_filter_update_gain.o \
 	modules/audio_processing/aec3/matched_filter.o \
 	modules/audio_processing/aec3/matched_filter_lag_aggregator.o \
 	modules/audio_processing/aec3/matrix_buffer.o \
-	modules/audio_processing/aec3/output_selector.o \
 	modules/audio_processing/aec3/render_buffer.o \
 	modules/audio_processing/aec3/render_delay_buffer.o \
 	modules/audio_processing/aec3/render_delay_controller.o \
@@ -122,6 +124,7 @@ aec3_CXX_OBJECTS = \
 	modules/audio_processing/aec3/residual_echo_estimator.o \
 	modules/audio_processing/aec3/shadow_filter_update_gain.o \
 	modules/audio_processing/aec3/skew_estimator.o \
+	modules/audio_processing/aec3/stationarity_estimator.o \
 	modules/audio_processing/aec3/subtractor.o \
 	modules/audio_processing/aec3/suppression_filter.o \
 	modules/audio_processing/aec3/suppression_gain.o \
@@ -135,10 +138,23 @@ aec3_config_CXX_OBJECTS = \
 	api/audio/echo_canceller3_config.o
 
 agc2_CXX_OBJECTS = \
+	modules/audio_processing/agc2/adaptive_agc.o \
+	modules/audio_processing/agc2/adaptive_digital_gain_applier.o \
+	modules/audio_processing/agc2/adaptive_mode_level_estimator.o \
+	modules/audio_processing/agc2/biquad_filter.o \
+	modules/audio_processing/agc2/compute_interpolated_gain_curve.o \
+	modules/audio_processing/agc2/down_sampler.o \
 	modules/audio_processing/agc2/fixed_digital_level_estimator.o \
 	modules/audio_processing/agc2/fixed_gain_controller.o \
+	modules/audio_processing/agc2/gain_applier.o \
 	modules/audio_processing/agc2/gain_curve_applier.o \
-	modules/audio_processing/agc2/interpolated_gain_curve.o
+	modules/audio_processing/agc2/interpolated_gain_curve.o \
+	modules/audio_processing/agc2/limiter.o \
+	modules/audio_processing/agc2/noise_level_estimator.o \
+	modules/audio_processing/agc2/noise_spectrum_estimator.o \
+	modules/audio_processing/agc2/saturation_protector.o \
+	modules/audio_processing/agc2/signal_classifier.o \
+	modules/audio_processing/agc2/vector_float_frame.o
 
 # Dependency of agc/agc.o
 vad_CXX_OBJECTS = \

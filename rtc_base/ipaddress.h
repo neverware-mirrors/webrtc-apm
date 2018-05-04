@@ -83,7 +83,13 @@ class IPAddress {
   bool operator!=(const IPAddress& other) const;
   bool operator <(const IPAddress& other) const;
   bool operator >(const IPAddress& other) const;
-  friend std::ostream& operator<<(std::ostream& os, const IPAddress& addr);
+
+#ifdef UNIT_TEST
+  inline std::ostream& operator<<(  // no-presubmit-check TODO(webrtc:8982)
+      std::ostream& os) {           // no-presubmit-check TODO(webrtc:8982)
+    return os << ToString();
+  }
+#endif  // UNIT_TEST
 
   int family() const { return family_; }
   in_addr ipv4_address() const;
@@ -126,8 +132,8 @@ class InterfaceAddress : public IPAddress {
  public:
   InterfaceAddress() : ipv6_flags_(IPV6_ADDRESS_FLAG_NONE) {}
 
-  InterfaceAddress(IPAddress ip)
-    : IPAddress(ip), ipv6_flags_(IPV6_ADDRESS_FLAG_NONE) {}
+  explicit InterfaceAddress(IPAddress ip)
+      : IPAddress(ip), ipv6_flags_(IPV6_ADDRESS_FLAG_NONE) {}
 
   InterfaceAddress(IPAddress addr, int ipv6_flags)
     : IPAddress(addr), ipv6_flags_(ipv6_flags) {}
@@ -141,8 +147,8 @@ class InterfaceAddress : public IPAddress {
   bool operator!=(const InterfaceAddress& other) const;
 
   int ipv6_flags() const { return ipv6_flags_; }
-  friend std::ostream& operator<<(std::ostream& os,
-                                  const InterfaceAddress& addr);
+
+  std::string ToString() const;
 
  private:
   int ipv6_flags_;

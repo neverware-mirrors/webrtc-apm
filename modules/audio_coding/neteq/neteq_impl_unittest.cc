@@ -27,7 +27,6 @@
 #include "modules/audio_coding/neteq/preemptive_expand.h"
 #include "modules/audio_coding/neteq/sync_buffer.h"
 #include "modules/audio_coding/neteq/timestamp_scaler.h"
-#include "modules/include/module_common_types.h"
 #include "rtc_base/numerics/safe_conversions.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
@@ -335,7 +334,7 @@ TEST_F(NetEqImplTest, InsertPacket) {
 
         *dec = std::move(mock_decoder);
       }));
-  DecoderDatabase::DecoderInfo info(NetEqDecoder::kDecoderPCMu,
+  DecoderDatabase::DecoderInfo info(NetEqDecoder::kDecoderPCMu, rtc::nullopt,
                                     mock_decoder_factory);
 
   // Expectations for decoder database.

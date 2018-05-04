@@ -18,7 +18,7 @@ namespace webrtc {
 // Configuration struct for EchoCanceller3
 struct EchoCanceller3Config {
   EchoCanceller3Config();
-
+  EchoCanceller3Config(const EchoCanceller3Config& e);
   struct Delay {
     size_t default_delay = 5;
     size_t down_sampling_factor = 4;
@@ -57,7 +57,7 @@ struct EchoCanceller3Config {
 
   struct Erle {
     float min = 1.f;
-    float max_l = 8.f;
+    float max_l = 4.f;
     float max_h = 1.5f;
   } erle;
 
@@ -71,20 +71,32 @@ struct EchoCanceller3Config {
   } ep_strength;
 
   struct Mask {
+    Mask();
+    Mask(const Mask& m);
     float m1 = 0.01f;
     float m2 = 0.0001f;
     float m3 = 0.01f;
-    float m4 = 0.1f;
-    float m5 = 0.1f;
+    float m5 = 0.01f;
     float m6 = 0.0001f;
     float m7 = 0.01f;
     float m8 = 0.0001f;
     float m9 = 0.1f;
+
+    float gain_curve_offset = 1.45f;
+    float gain_curve_slope = 5.f;
+    float temporal_masking_lf = 0.9f;
+    float temporal_masking_hf = 0.6f;
+    size_t temporal_masking_lf_bands = 3;
   } gain_mask;
 
   struct EchoAudibility {
     float low_render_limit = 4 * 64.f;
     float normal_render_limit = 64.f;
+    float floor_power = 2 * 64.f;
+    float audibility_threshold_lf = 10;
+    float audibility_threshold_mf = 10;
+    float audibility_threshold_hf = 10;
+    bool use_stationary_properties = false;
   } echo_audibility;
 
   struct RenderLevels {
@@ -120,6 +132,22 @@ struct EchoCanceller3Config {
 
     bool has_clock_drift = false;
   } echo_removal_control;
+
+  struct EchoModel {
+    size_t noise_floor_hold = 50;
+    float min_noise_floor_power = 1638400.f;
+    float stationary_gate_slope = 10.f;
+    float noise_gate_power = 27509.42f;
+    float noise_gate_slope = 0.3f;
+    size_t render_pre_window_size = 1;
+    size_t render_post_window_size = 1;
+    float nonlinear_hold = 1;
+    float nonlinear_release = 0.001f;
+  } echo_model;
+
+  struct Suppressor {
+    size_t bands_with_reliable_coherence = 5;
+  } suppressor;
 };
 }  // namespace webrtc
 

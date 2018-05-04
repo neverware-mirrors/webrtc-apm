@@ -42,6 +42,8 @@ task_queue_impl_CXX_OBJECTS = \
 
 rtc_base_CXX_OBJECTS = \
 	rtc_base/checks.o \
+	rtc_base/memory/aligned_malloc.o \
+	rtc_base/system/file_wrapper.o \
 	$(rtc_base_approved_generic_CXX_OBJECTS) \
 	$(task_queue_impl_CXX_OBJECTS)
 

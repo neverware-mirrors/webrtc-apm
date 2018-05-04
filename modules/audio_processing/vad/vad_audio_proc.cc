@@ -12,6 +12,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "common_audio/fft4g.h"
 #include "modules/audio_processing/vad/pitch_internal.h"
@@ -24,7 +25,6 @@ extern "C" {
 #include "modules/audio_coding/codecs/isac/main/source/pitch_estimator.h"
 #include "modules/audio_coding/codecs/isac/main/source/structs.h"
 }
-#include "modules/include/module_common_types.h"
 
 namespace webrtc {
 

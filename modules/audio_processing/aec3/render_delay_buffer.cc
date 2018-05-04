@@ -38,7 +38,7 @@ class RenderDelayBufferImpl final : public RenderDelayBuffer {
   BufferingEvent Insert(const std::vector<std::vector<float>>& block) override;
   BufferingEvent PrepareCaptureProcessing() override;
   bool SetDelay(size_t delay) override;
-  rtc::Optional<size_t> Delay() const override { return delay_; }
+  size_t Delay() const override { return MapInternalDelayToExternalDelay(); }
   size_t MaxDelay() const override {
     return blocks_.buffer.size() - 1 - buffer_headroom_;
   }
@@ -49,6 +49,8 @@ class RenderDelayBufferImpl final : public RenderDelayBuffer {
   }
 
   bool CausalDelay(size_t delay) const override;
+
+  void SetAudioBufferDelay(size_t delay_ms) override;
 
  private:
   static int instance_count_;
@@ -75,9 +77,12 @@ class RenderDelayBufferImpl final : public RenderDelayBuffer {
   size_t render_call_counter_ = 0;
   bool render_activity_ = false;
   size_t render_activity_counter_ = 0;
+  rtc::Optional<size_t> external_audio_buffer_delay_ms_;
+  bool external_delay_verified_after_reset_ = false;
 
   int LowRateBufferOffset() const { return DelayEstimatorOffset(config_) >> 1; }
-  int MaxExternalDelayToInternalDelay(size_t delay) const;
+  int MapExternalDelayToInternalDelay(size_t external_delay_blocks) const;
+  int MapInternalDelayToExternalDelay() const;
   void ApplyDelay(int delay);
   void InsertBlock(const std::vector<std::vector<float>>& block,
                    int previous_write);
@@ -167,7 +172,7 @@ RenderDelayBufferImpl::RenderDelayBufferImpl(const EchoCanceller3Config& config,
               kBlockSize),
       spectra_(blocks_.buffer.size(), kFftLengthBy2Plus1),
       ffts_(blocks_.buffer.size()),
-      delay_(config_.delay.min_echo_path_delay_blocks),
+      delay_(config_.delay.default_delay),
       echo_remover_buffer_(&blocks_, &spectra_, &ffts_),
       low_rate_(GetDownSampledBufferSize(config.delay.down_sampling_factor,
                                          config.delay.num_filters)),
@@ -196,12 +201,33 @@ void RenderDelayBufferImpl::Reset() {
   low_rate_.read = low_rate_.OffsetIndex(
       low_rate_.write, LowRateBufferOffset() * sub_block_size_);
 
-  // Set the render buffer delays to the default delay.
-  ApplyDelay(config_.delay.default_delay);
+  // Check for any external audio buffer delay and whether it is feasible.
+  if (external_audio_buffer_delay_ms_) {
+    constexpr size_t kHeadroom = 5;
+    size_t external_delay_to_set = 0;
+    if (*external_audio_buffer_delay_ms_ < kHeadroom) {
+      external_delay_to_set = 0;
+    } else {
+      external_delay_to_set = *external_audio_buffer_delay_ms_ - kHeadroom;
+    }
 
-  // Unset the delays which are set by ApplyConfig.
-  delay_ = rtc::nullopt;
-  internal_delay_ = rtc::nullopt;
+    constexpr size_t kMaxExternalDelay = 170;
+    external_delay_to_set = std::min(external_delay_to_set, kMaxExternalDelay);
+
+    // When an external delay estimate is available, use that delay as the
+    // initial render buffer delay. Avoid verifying the set delay.
+    external_delay_verified_after_reset_ = true;
+    SetDelay(external_delay_to_set);
+    external_delay_verified_after_reset_ = false;
+  } else {
+    // If an external delay estimate is not available, use that delay as the
+    // initial delay. Set the render buffer delays to the default delay.
+    ApplyDelay(config_.delay.default_delay);
+
+    // Unset the delays which are set by SetDelay.
+    delay_ = rtc::nullopt;
+    internal_delay_ = rtc::nullopt;
+  }
 }
 
 // Inserts a new block into the render buffers.
@@ -215,7 +241,7 @@ RenderDelayBuffer::BufferingEvent RenderDelayBufferImpl::Insert(
     } else {
       if (++num_api_calls_in_a_row_ > max_observed_jitter_) {
         max_observed_jitter_ = num_api_calls_in_a_row_;
-        RTC_LOG(LS_INFO)
+        RTC_LOG(LS_WARNING)
             << "New max number api jitter observed at render block "
             << render_call_counter_ << ":  " << num_api_calls_in_a_row_
             << " blocks";
@@ -263,7 +289,7 @@ RenderDelayBufferImpl::PrepareCaptureProcessing() {
     } else {
       if (++num_api_calls_in_a_row_ > max_observed_jitter_) {
         max_observed_jitter_ = num_api_calls_in_a_row_;
-        RTC_LOG(LS_INFO)
+        RTC_LOG(LS_WARNING)
             << "New max number api jitter observed at capture block "
             << capture_call_counter_ << ":  " << num_api_calls_in_a_row_
             << " blocks";
@@ -304,13 +330,22 @@ RenderDelayBufferImpl::PrepareCaptureProcessing() {
 
 // Sets the delay and returns a bool indicating whether the delay was changed.
 bool RenderDelayBufferImpl::SetDelay(size_t delay) {
+  if (!external_delay_verified_after_reset_ &&
+      external_audio_buffer_delay_ms_) {
+    int delay_difference = static_cast<int>(*external_audio_buffer_delay_ms_) -
+                           static_cast<int>(delay);
+    RTC_LOG(LS_WARNING) << "Difference between the externally reported delay "
+                           "and the first delay estimate: "
+                        << delay_difference << " ms.";
+    external_delay_verified_after_reset_ = true;
+  }
   if (delay_ && *delay_ == delay) {
     return false;
   }
   delay_ = delay;
 
   // Compute the internal delay and limit the delay to the allowed range.
-  int internal_delay = MaxExternalDelayToInternalDelay(*delay_);
+  int internal_delay = MapExternalDelayToInternalDelay(*delay_);
   internal_delay_ =
       std::min(MaxDelay(), static_cast<size_t>(std::max(internal_delay, 0)));
 
@@ -322,7 +357,7 @@ bool RenderDelayBufferImpl::SetDelay(size_t delay) {
 // Returns whether the specified delay is causal.
 bool RenderDelayBufferImpl::CausalDelay(size_t delay) const {
   // Compute the internal delay and limit the delay to the allowed range.
-  int internal_delay = MaxExternalDelayToInternalDelay(delay);
+  int internal_delay = MapExternalDelayToInternalDelay(delay);
   internal_delay =
       std::min(MaxDelay(), static_cast<size_t>(std::max(internal_delay, 0)));
 
@@ -330,8 +365,17 @@ bool RenderDelayBufferImpl::CausalDelay(size_t delay) const {
          static_cast<int>(config_.delay.min_echo_path_delay_blocks);
 }
 
+void RenderDelayBufferImpl::SetAudioBufferDelay(size_t delay_ms) {
+  if (!external_audio_buffer_delay_ms_) {
+    RTC_LOG(LS_WARNING)
+        << "Receiving a first reported externally buffer delay of " << delay_ms
+        << " ms.";
+  }
+  external_audio_buffer_delay_ms_ = delay_ms;
+}
+
 // Maps the externally computed delay to the delay used internally.
-int RenderDelayBufferImpl::MaxExternalDelayToInternalDelay(
+int RenderDelayBufferImpl::MapExternalDelayToInternalDelay(
     size_t external_delay_blocks) const {
   const int latency = BufferLatency(low_rate_);
   RTC_DCHECK_LT(0, sub_block_size_);
@@ -341,8 +385,20 @@ int RenderDelayBufferImpl::MaxExternalDelayToInternalDelay(
          DelayEstimatorOffset(config_);
 }
 
+// Maps the internally used delay to the delay used externally.
+int RenderDelayBufferImpl::MapInternalDelayToExternalDelay() const {
+  const int latency = BufferLatency(low_rate_);
+  int latency_blocks = latency / sub_block_size_;
+  int internal_delay = spectra_.read >= spectra_.write
+                           ? spectra_.read - spectra_.write
+                           : spectra_.size + spectra_.read - spectra_.write;
+
+  return internal_delay - latency_blocks + DelayEstimatorOffset(config_);
+}
+
 // Set the read indices according to the delay.
 void RenderDelayBufferImpl::ApplyDelay(int delay) {
+  RTC_LOG(LS_WARNING) << "Applying internal delay of " << delay << " blocks.";
   blocks_.read = blocks_.OffsetIndex(blocks_.write, -delay);
   spectra_.read = spectra_.OffsetIndex(spectra_.write, delay);
   ffts_.read = ffts_.OffsetIndex(ffts_.write, delay);

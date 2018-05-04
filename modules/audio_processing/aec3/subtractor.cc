@@ -99,6 +99,7 @@ void Subtractor::HandleEchoPathChange(
     shadow_filter_converged_ = false;
     main_filter_.SetSizePartitions(config_.filter.main_initial.length_blocks,
                                    true);
+    main_filter_once_converged_ = false;
     shadow_filter_.SetSizePartitions(
         config_.filter.shadow_initial.length_blocks, true);
   };
@@ -133,7 +134,6 @@ void Subtractor::Process(const RenderBuffer& render_buffer,
   RTC_DCHECK_EQ(kBlockSize, capture.size());
   rtc::ArrayView<const float> y = capture;
   FftData& E_main = output->E_main;
-  FftData& E_main_nonwindowed = output->E_main_nonwindowed;
   FftData E_shadow;
   std::array<float, kBlockSize>& e_main = output->e_main;
   std::array<float, kBlockSize>& e_shadow = output->e_shadow;
@@ -153,36 +153,25 @@ void Subtractor::Process(const RenderBuffer& render_buffer,
   PredictionError(fft_, S, y, &e_shadow, nullptr, &shadow_saturation);
   fft_.ZeroPaddedFft(e_shadow, Aec3Fft::Window::kHanning, &E_shadow);
 
-  if (!(main_filter_converged_ || shadow_filter_converged_)) {
-    const auto sum_of_squares = [](float a, float b) { return a + b * b; };
-    const float y2 = std::accumulate(y.begin(), y.end(), 0.f, sum_of_squares);
+  // Check for filter convergence.
+  const auto sum_of_squares = [](float a, float b) { return a + b * b; };
+  const float y2 = std::accumulate(y.begin(), y.end(), 0.f, sum_of_squares);
+  const float e2_main =
+      std::accumulate(e_main.begin(), e_main.end(), 0.f, sum_of_squares);
+  const float e2_shadow =
+      std::accumulate(e_shadow.begin(), e_shadow.end(), 0.f, sum_of_squares);
 
-    if (!main_filter_converged_) {
-      const float e2_main =
-          std::accumulate(e_main.begin(), e_main.end(), 0.f, sum_of_squares);
-      main_filter_converged_ = e2_main > 0.1 * y2;
-    }
-
-    if (!shadow_filter_converged_) {
-      const float e2_shadow = std::accumulate(e_shadow.begin(), e_shadow.end(),
-                                              0.f, sum_of_squares);
-      shadow_filter_converged_ = e2_shadow > 0.1 * y2;
-    }
-  }
+  constexpr float kConvergenceThreshold = 50 * 50 * kBlockSize;
+  main_filter_converged_ = e2_main < 0.2 * y2 && y2 > kConvergenceThreshold;
+  shadow_filter_converged_ =
+      e2_shadow < 0.05 * y2 && y2 > kConvergenceThreshold;
+  main_filter_once_converged_ =
+      main_filter_once_converged_ || main_filter_converged_;
+  main_filter_diverged_ = e2_main > 1.5f * y2 && y2 > 30.f * 30.f * kBlockSize;
 
   // Compute spectra for future use.
   E_shadow.Spectrum(optimization_, output->E2_shadow);
   E_main.Spectrum(optimization_, output->E2_main);
-
-  if (main_filter_converged_ || !shadow_filter_converged_) {
-    fft_.ZeroPaddedFft(e_main, Aec3Fft::Window::kRectangular,
-                       &E_main_nonwindowed);
-    E_main_nonwindowed.Spectrum(optimization_, output->E2_main_nonwindowed);
-  } else {
-    fft_.ZeroPaddedFft(e_shadow, Aec3Fft::Window::kRectangular,
-                       &E_main_nonwindowed);
-    E_main_nonwindowed.Spectrum(optimization_, output->E2_main_nonwindowed);
-  }
 
   // Update the main filter.
   std::array<float, kFftLengthBy2Plus1> X2;
@@ -205,9 +194,7 @@ void Subtractor::Process(const RenderBuffer& render_buffer,
   data_dumper_->DumpRaw("aec3_subtractor_G_shadow", G.re);
   data_dumper_->DumpRaw("aec3_subtractor_G_shadow", G.im);
 
-  main_filter_.DumpFilter("aec3_subtractor_H_main", "aec3_subtractor_h_main");
-  shadow_filter_.DumpFilter("aec3_subtractor_H_shadow",
-                            "aec3_subtractor_h_shadow");
+  DumpFilters();
 }
 
 }  // namespace webrtc

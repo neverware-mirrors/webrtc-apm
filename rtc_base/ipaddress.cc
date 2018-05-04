@@ -120,11 +120,6 @@ bool IPAddress::operator <(const IPAddress &other) const {
   return false;
 }
 
-std::ostream& operator<<(std::ostream& os, const IPAddress& ip) {
-  os << ip.ToString();
-  return os;
-}
-
 in6_addr IPAddress::ipv6_address() const {
   return u_.ip6;
 }
@@ -216,13 +211,13 @@ const InterfaceAddress& InterfaceAddress::operator=(
   return *this;
 }
 
-std::ostream& operator<<(std::ostream& os, const InterfaceAddress& ip) {
-  os << static_cast<const IPAddress&>(ip);
+std::string InterfaceAddress::ToString() const {
+  std::string result = IPAddress::ToString();
 
-  if (ip.family() == AF_INET6)
-    os << "|flags:0x" << std::hex << ip.ipv6_flags();
+  if (family() == AF_INET6)
+    result += "|flags:0x" + rtc::ToHex(ipv6_flags());
 
-  return os;
+  return result;
 }
 
 static bool IPIsPrivateNetworkV4(const IPAddress& ip) {

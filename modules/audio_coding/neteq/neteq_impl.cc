@@ -41,11 +41,11 @@
 #include "modules/audio_coding/neteq/sync_buffer.h"
 #include "modules/audio_coding/neteq/tick_timer.h"
 #include "modules/audio_coding/neteq/timestamp_scaler.h"
-#include "modules/include/module_common_types.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/numerics/safe_conversions.h"
 #include "rtc_base/sanitizer.h"
+#include "rtc_base/strings/audio_format_to_string.h"
 #include "rtc_base/system/fallthrough.h"
 #include "rtc_base/trace_event.h"
 #include "system_wrappers/include/field_trial.h"
@@ -57,7 +57,8 @@ NetEqImpl::Dependencies::Dependencies(
     const rtc::scoped_refptr<AudioDecoderFactory>& decoder_factory)
     : tick_timer(new TickTimer),
       buffer_level_filter(new BufferLevelFilter),
-      decoder_database(new DecoderDatabase(decoder_factory)),
+      decoder_database(
+          new DecoderDatabase(decoder_factory, config.codec_pair_id)),
       delay_peak_detector(new DelayPeakDetector(tick_timer.get())),
       delay_manager(new DelayManager(config.max_packets_in_buffer,
                                      delay_peak_detector.get(),
@@ -100,11 +101,16 @@ NetEqImpl::NetEqImpl(const NetEq::Config& config,
       reset_decoder_(false),
       ssrc_(0),
       first_packet_(true),
-      background_noise_mode_(config.background_noise_mode),
       playout_mode_(config.playout_mode),
       enable_fast_accelerate_(config.enable_fast_accelerate),
       nack_enabled_(false),
-      enable_muted_state_(config.enable_muted_state) {
+      enable_muted_state_(config.enable_muted_state),
+      expand_uma_logger_("WebRTC.Audio.ExpandRatePercent",
+                         10,  // Report once every 10 s.
+                         tick_timer_.get()),
+      speech_expand_uma_logger_("WebRTC.Audio.SpeechExpandRatePercent",
+                                10,  // Report once every 10 s.
+                                tick_timer_.get()) {
   RTC_LOG(LS_INFO) << "NetEq config: " << config.ToString();
   int fs = config.sample_rate_hz;
   if (fs != 8000 && fs != 16000 && fs != 32000 && fs != 48000) {
@@ -261,7 +267,8 @@ int NetEqImpl::RegisterExternalDecoder(AudioDecoder* decoder,
 bool NetEqImpl::RegisterPayloadType(int rtp_payload_type,
                                     const SdpAudioFormat& audio_format) {
   RTC_LOG(LS_VERBOSE) << "NetEqImpl::RegisterPayloadType: payload type "
-                      << rtp_payload_type << ", codec " << audio_format;
+                      << rtp_payload_type << ", codec "
+                      << rtc::ToString(audio_format);
   rtc::CritScope lock(&crit_sect_);
   return decoder_database_->RegisterPayload(rtp_payload_type, audio_format) ==
          DecoderDatabase::kOK;
@@ -834,6 +841,11 @@ int NetEqImpl::GetAudioInternal(AudioFrame* audio_frame, bool* muted) {
   last_decoded_timestamps_.clear();
   tick_timer_->Increment();
   stats_.IncreaseCounter(output_size_samples_, fs_hz_);
+  const auto lifetime_stats = stats_.GetLifetimeStatistics();
+  expand_uma_logger_.UpdateSampleCounter(lifetime_stats.concealed_samples,
+                                         fs_hz_);
+  speech_expand_uma_logger_.UpdateSampleCounter(
+      lifetime_stats.voice_concealed_samples, fs_hz_);
 
   // Check for muted state.
   if (enable_muted_state_ && expand_->Muted() && packet_buffer_->Empty()) {
@@ -2075,7 +2087,6 @@ void NetEqImpl::SetSampleRateAndChannels(int fs_hz, size_t channels) {
 
   // Delete BackgroundNoise object and create a new one.
   background_noise_.reset(new BackgroundNoise(channels));
-  background_noise_->set_mode(background_noise_mode_);
 
   // Reset random vector.
   random_vector_.Reset();

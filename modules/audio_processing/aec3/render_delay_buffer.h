@@ -57,7 +57,7 @@ class RenderDelayBuffer {
   virtual bool SetDelay(size_t delay) = 0;
 
   // Gets the buffer delay.
-  virtual rtc::Optional<size_t> Delay() const = 0;
+  virtual size_t Delay() const = 0;
 
   // Gets the buffer delay.
   virtual size_t MaxDelay() const = 0;
@@ -73,6 +73,9 @@ class RenderDelayBuffer {
 
   // Returns the maximum non calusal offset that can occur in the delay buffer.
   static int DelayEstimatorOffset(const EchoCanceller3Config& config);
+
+  // Provides an optional external estimate of the audio buffer delay.
+  virtual void SetAudioBufferDelay(size_t delay_ms) = 0;
 };
 
 }  // namespace webrtc

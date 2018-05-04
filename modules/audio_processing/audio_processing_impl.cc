@@ -20,6 +20,7 @@
 #include "common_audio/signal_processing/include/signal_processing_library.h"
 #include "modules/audio_processing/aec/aec_core.h"
 #include "modules/audio_processing/agc/agc_manager_direct.h"
+#include "modules/audio_processing/agc2/gain_applier.h"
 #include "modules/audio_processing/audio_buffer.h"
 #include "modules/audio_processing/beamformer/nonlinear_beamformer.h"
 #include "modules/audio_processing/common.h"
@@ -43,9 +44,7 @@
 #include "modules/audio_processing/residual_echo_detector.h"
 #include "modules/audio_processing/transient/transient_suppressor.h"
 #include "modules/audio_processing/voice_detection_impl.h"
-#include "modules/include/module_common_types.h"
 #include "rtc_base/atomicops.h"
-#include "system_wrappers/include/file_wrapper.h"
 #include "system_wrappers/include/metrics.h"
 
 // Check to verify that the define for the intelligibility enhancer is properly
@@ -187,6 +186,7 @@ bool AudioProcessingImpl::ApmSubmoduleStates::Update(
     bool beamformer_enabled,
     bool adaptive_gain_controller_enabled,
     bool gain_controller2_enabled,
+    bool pre_amplifier_enabled,
     bool echo_controller_enabled,
     bool voice_activity_detector_enabled,
     bool level_estimator_enabled,
@@ -206,6 +206,7 @@ bool AudioProcessingImpl::ApmSubmoduleStates::Update(
       (adaptive_gain_controller_enabled != adaptive_gain_controller_enabled_);
   changed |=
       (gain_controller2_enabled != gain_controller2_enabled_);
+  changed |= (pre_amplifier_enabled_ != pre_amplifier_enabled);
   changed |= (echo_controller_enabled != echo_controller_enabled_);
   changed |= (level_estimator_enabled != level_estimator_enabled_);
   changed |=
@@ -221,6 +222,7 @@ bool AudioProcessingImpl::ApmSubmoduleStates::Update(
     beamformer_enabled_ = beamformer_enabled;
     adaptive_gain_controller_enabled_ = adaptive_gain_controller_enabled;
     gain_controller2_enabled_ = gain_controller2_enabled;
+    pre_amplifier_enabled_ = pre_amplifier_enabled;
     echo_controller_enabled_ = echo_controller_enabled;
     level_estimator_enabled_ = level_estimator_enabled;
     voice_activity_detector_enabled_ = voice_activity_detector_enabled;
@@ -252,7 +254,8 @@ bool AudioProcessingImpl::ApmSubmoduleStates::CaptureMultiBandProcessingActive()
 
 bool AudioProcessingImpl::ApmSubmoduleStates::CaptureFullBandProcessingActive()
     const {
-  return gain_controller2_enabled_ || capture_post_processor_enabled_;
+  return gain_controller2_enabled_ || capture_post_processor_enabled_ ||
+         pre_amplifier_enabled_;
 }
 
 bool AudioProcessingImpl::ApmSubmoduleStates::RenderMultiBandSubModulesActive()
@@ -313,6 +316,7 @@ struct AudioProcessingImpl::ApmPrivateSubmodules {
   std::unique_ptr<EchoControl> echo_controller;
   std::unique_ptr<CustomProcessing> capture_post_processor;
   std::unique_ptr<CustomProcessing> render_pre_processor;
+  std::unique_ptr<GainApplier> pre_amplifier;
 };
 
 AudioProcessingBuilder::AudioProcessingBuilder() = default;
@@ -380,6 +384,8 @@ AudioProcessingImpl::AudioProcessingImpl(
     NonlinearBeamformer* beamformer)
     : data_dumper_(
           new ApmDataDumper(rtc::AtomicOps::Increment(&instance_count_))),
+      runtime_settings_(100),
+      runtime_settings_enqueuer_(&runtime_settings_),
       high_pass_filter_impl_(new HighPassFilterImpl(this)),
       echo_control_factory_(std::move(echo_control_factory)),
       submodule_states_(!!capture_post_processor, !!render_pre_processor),
@@ -713,9 +719,12 @@ void AudioProcessingImpl::ApplyConfig(const AudioProcessing::Config& config) {
     config_.gain_controller2 = AudioProcessing::Config::GainController2();
   }
   InitializeGainController2();
+  InitializePreAmplifier();
   private_submodules_->gain_controller2->ApplyConfig(config_.gain_controller2);
   RTC_LOG(LS_INFO) << "Gain Controller 2 activated: "
                    << config_.gain_controller2.enabled;
+  RTC_LOG(LS_INFO) << "Pre-amplifier activated: "
+                   << config_.pre_amplifier.enabled;
 }
 
 void AudioProcessingImpl::SetExtraOptions(const webrtc::Config& config) {
@@ -796,6 +805,32 @@ void AudioProcessingImpl::set_output_will_be_muted(bool muted) {
   }
 }
 
+void AudioProcessingImpl::SetRuntimeSetting(RuntimeSetting setting) {
+  RTC_DCHECK(setting.type() != RuntimeSetting::Type::kNotSpecified);
+  runtime_settings_enqueuer_.Enqueue(setting);
+}
+
+AudioProcessingImpl::RuntimeSettingEnqueuer::RuntimeSettingEnqueuer(
+    SwapQueue<RuntimeSetting>* runtime_settings)
+    : runtime_settings_(*runtime_settings) {
+  RTC_DCHECK(runtime_settings);
+}
+
+AudioProcessingImpl::RuntimeSettingEnqueuer::~RuntimeSettingEnqueuer() =
+    default;
+
+void AudioProcessingImpl::RuntimeSettingEnqueuer::Enqueue(
+    RuntimeSetting setting) {
+  size_t remaining_attempts = 10;
+  while (!runtime_settings_.Insert(&setting) && remaining_attempts-- > 0) {
+    RuntimeSetting setting_to_discard;
+    if (runtime_settings_.Remove(&setting_to_discard))
+      RTC_LOG(LS_ERROR)
+          << "The runtime settings queue is full. Oldest setting discarded.";
+  }
+  if (remaining_attempts == 0)
+    RTC_LOG(LS_ERROR) << "Cannot enqueue a new runtime setting.";
+}
 
 int AudioProcessingImpl::ProcessStream(const float* const* src,
                                        size_t samples_per_channel,
@@ -876,6 +911,25 @@ int AudioProcessingImpl::ProcessStream(const float* const* src,
     RecordProcessedCaptureStream(dest);
   }
   return kNoError;
+}
+
+void AudioProcessingImpl::HandleRuntimeSettings() {
+  RuntimeSetting setting;
+  while (runtime_settings_.Remove(&setting)) {
+    switch (setting.type()) {
+      case RuntimeSetting::Type::kCapturePreGain:
+        if (config_.pre_amplifier.enabled) {
+          float value;
+          setting.GetFloat(&value);
+          private_submodules_->pre_amplifier->SetGainFactor(value);
+        }
+        // TODO(bugs.chromium.org/9138): Log setting handling by Aec Dump.
+        break;
+      case RuntimeSetting::Type::kNotSpecified:
+        RTC_NOTREACHED();
+        break;
+    }
+  }
 }
 
 void AudioProcessingImpl::QueueBandedRenderAudio(AudioBuffer* audio) {
@@ -1132,6 +1186,8 @@ int AudioProcessingImpl::ProcessStream(AudioFrame* frame) {
 }
 
 int AudioProcessingImpl::ProcessCaptureStreamLocked() {
+  HandleRuntimeSettings();
+
   // Ensure that not both the AEC and AECM are active at the same time.
   // TODO(peah): Simplify once the public API Enable functions for these
   // are moved to APM.
@@ -1141,6 +1197,12 @@ int AudioProcessingImpl::ProcessCaptureStreamLocked() {
   MaybeUpdateHistograms();
 
   AudioBuffer* capture_buffer = capture_.capture_audio.get();  // For brevity.
+
+  if (private_submodules_->pre_amplifier) {
+    private_submodules_->pre_amplifier->ApplyGain(AudioFrameView<float>(
+        capture_buffer->channels_f(), capture_buffer->num_channels(),
+        capture_buffer->num_frames()));
+  }
 
   capture_input_rms_.Analyze(rtc::ArrayView<const int16_t>(
       capture_buffer->channels_const()[0],
@@ -1208,6 +1270,11 @@ int AudioProcessingImpl::ProcessCaptureStreamLocked() {
 
   if (private_submodules_->echo_controller) {
     data_dumper_->DumpRaw("stream_delay", stream_delay_ms());
+
+    if (was_stream_delay_set()) {
+      private_submodules_->echo_controller->SetAudioBufferDelay(
+          stream_delay_ms());
+    }
 
     private_submodules_->echo_controller->ProcessCapture(
         capture_buffer, capture_.echo_path_gain_change);
@@ -1375,8 +1442,8 @@ int AudioProcessingImpl::AnalyzeReverseStreamLocked(
   processing_config.reverse_output_stream() = output_config;
 
   RETURN_ON_ERR(MaybeInitializeRender(processing_config));
-  assert(input_config.num_frames() ==
-         formats_.api_format.reverse_input_stream().num_frames());
+  RTC_DCHECK_EQ(input_config.num_frames(),
+                formats_.api_format.reverse_input_stream().num_frames());
 
   if (aec_dump_) {
     const size_t channel_size =
@@ -1724,7 +1791,7 @@ bool AudioProcessingImpl::UpdateActiveSubmoduleStates() {
       capture_nonlocked_.intelligibility_enabled,
       capture_nonlocked_.beamformer_enabled,
       public_submodules_->gain_control->is_enabled(),
-      config_.gain_controller2.enabled,
+      config_.gain_controller2.enabled, config_.pre_amplifier.enabled,
       capture_nonlocked_.echo_controller_enabled,
       public_submodules_->voice_detection->is_enabled(),
       public_submodules_->level_estimator->is_enabled(),
@@ -1790,12 +1857,20 @@ void AudioProcessingImpl::InitializeGainController2() {
   }
 }
 
+void AudioProcessingImpl::InitializePreAmplifier() {
+  if (config_.pre_amplifier.enabled) {
+    private_submodules_->pre_amplifier.reset(
+        new GainApplier(true, config_.pre_amplifier.fixed_gain_factor));
+  } else {
+    private_submodules_->pre_amplifier.reset();
+  }
+}
+
 void AudioProcessingImpl::InitializeResidualEchoDetector() {
   RTC_DCHECK(private_submodules_->echo_detector);
   private_submodules_->echo_detector->Initialize(
-      proc_sample_rate_hz(), num_proc_channels(),
-      formats_.render_processing_format.sample_rate_hz(),
-      formats_.render_processing_format.num_channels());
+      proc_sample_rate_hz(), 1,
+      formats_.render_processing_format.sample_rate_hz(), 1);
 }
 
 void AudioProcessingImpl::InitializePostProcessor() {
@@ -1941,6 +2016,9 @@ void AudioProcessingImpl::WriteAecDumpConfigMessage(bool forced) {
   apm_config.intelligibility_enhancer_enabled =
       capture_nonlocked_.intelligibility_enabled;
   apm_config.experiments_description = experiments_description;
+  apm_config.pre_amplifier_enabled = config_.pre_amplifier.enabled;
+  apm_config.pre_amplifier_fixed_gain_factor =
+      config_.pre_amplifier.fixed_gain_factor;
 
   if (!forced && apm_config == apm_config_for_aec_dump_) {
     return;

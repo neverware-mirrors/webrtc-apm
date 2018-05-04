@@ -67,10 +67,6 @@
 #ifndef API_PEERCONNECTIONINTERFACE_H_
 #define API_PEERCONNECTIONINTERFACE_H_
 
-// TODO(sakal): Remove this define after migration to virtual PeerConnection
-// observer is complete.
-#define VIRTUAL_PEERCONNECTION_OBSERVER_DESTRUCTOR
-
 #include <memory>
 #include <string>
 #include <utility>
@@ -158,9 +154,7 @@ class StatsObserver : public rtc::RefCountInterface {
   virtual ~StatsObserver() {}
 };
 
-// For now, kDefault is interpreted as kPlanB.
-// TODO(bugs.webrtc.org/8530): Switch default to kUnifiedPlan.
-enum class SdpSemantics { kDefault, kPlanB, kUnifiedPlan };
+enum class SdpSemantics { kPlanB, kUnifiedPlan };
 
 class PeerConnectionInterface : public rtc::RefCountInterface {
  public:
@@ -563,15 +557,12 @@ class PeerConnectionInterface : public rtc::RefCountInterface {
     // will also cause PeerConnection to ignore all but the first a=ssrc lines
     // that form a Plan B stream.
     //
-    // For users who only send at most one audio and one video track, this
-    // choice does not matter and should be left as kDefault.
-    //
     // For users who wish to send multiple audio/video streams and need to stay
-    // interoperable with legacy WebRTC implementations, specify kPlanB.
+    // interoperable with legacy WebRTC implementations or use legacy APIs,
+    // specify kPlanB.
     //
-    // For users who wish to send multiple audio/video streams and/or wish to
-    // use the new RtpTransceiver API, specify kUnifiedPlan.
-    SdpSemantics sdp_semantics = SdpSemantics::kDefault;
+    // For all other users, specify kUnifiedPlan.
+    SdpSemantics sdp_semantics = SdpSemantics::kPlanB;
 
     //
     // Don't forget to update operator== if adding something.
@@ -809,15 +800,46 @@ class PeerConnectionInterface : public rtc::RefCountInterface {
     return {};
   }
 
+  // The legacy non-compliant GetStats() API. This correspond to the
+  // callback-based version of getStats() in JavaScript. The returned metrics
+  // are UNDOCUMENTED and many of them rely on implementation-specific details.
+  // The goal is to DELETE THIS VERSION but we can't today because it is heavily
+  // relied upon by third parties. See https://crbug.com/822696.
+  //
+  // This version is wired up into Chrome. Any stats implemented are
+  // automatically exposed to the Web Platform. This has BYPASSED the Chrome
+  // release processes for years and lead to cross-browser incompatibility
+  // issues and web application reliance on Chrome-only behavior.
+  //
+  // This API is in "maintenance mode", serious regressions should be fixed but
+  // adding new stats is highly discouraged.
+  //
+  // TODO(hbos): Deprecate and remove this when third parties have migrated to
+  // the spec-compliant GetStats() API. https://crbug.com/822696
   virtual bool GetStats(StatsObserver* observer,
-                        MediaStreamTrackInterface* track,
+                        MediaStreamTrackInterface* track,  // Optional
                         StatsOutputLevel level) = 0;
-  // Gets stats using the new stats collection API, see webrtc/api/stats/. These
-  // will replace old stats collection API when the new API has matured enough.
-  // TODO(hbos): Default implementation that does nothing only exists as to not
-  // break third party projects. As soon as they have been updated this should
-  // be changed to "= 0;".
+  // The spec-compliant GetStats() API. This correspond to the promise-based
+  // version of getStats() in JavaScript. Implementation status is described in
+  // api/stats/rtcstats_objects.h. For more details on stats, see spec:
+  // https://w3c.github.io/webrtc-pc/#dom-rtcpeerconnection-getstats
+  // TODO(hbos): Takes shared ownership, use rtc::scoped_refptr<> instead. This
+  // requires stop overriding the current version in third party or making third
+  // party calls explicit to avoid ambiguity during switch. Make the future
+  // version abstract as soon as third party projects implement it.
   virtual void GetStats(RTCStatsCollectorCallback* callback) {}
+  // Spec-compliant getStats() performing the stats selection algorithm with the
+  // sender. https://w3c.github.io/webrtc-pc/#dom-rtcrtpsender-getstats
+  // TODO(hbos): Make abstract as soon as third party projects implement it.
+  virtual void GetStats(
+      rtc::scoped_refptr<RtpSenderInterface> selector,
+      rtc::scoped_refptr<RTCStatsCollectorCallback> callback) {}
+  // Spec-compliant getStats() performing the stats selection algorithm with the
+  // receiver. https://w3c.github.io/webrtc-pc/#dom-rtcrtpreceiver-getstats
+  // TODO(hbos): Make abstract as soon as third party projects implement it.
+  virtual void GetStats(
+      rtc::scoped_refptr<RtpReceiverInterface> selector,
+      rtc::scoped_refptr<RTCStatsCollectorCallback> callback) {}
   // Clear cached stats in the RTCStatsCollector.
   // Exposed for testing while waiting for automatic cache clear to work.
   // https://bugs.webrtc.org/8693
@@ -897,13 +919,6 @@ class PeerConnectionInterface : public rtc::RefCountInterface {
   virtual void SetRemoteDescription(
       std::unique_ptr<SessionDescriptionInterface> desc,
       rtc::scoped_refptr<SetRemoteDescriptionObserverInterface> observer) {}
-  // Deprecated; Replaced by SetConfiguration.
-  // TODO(deadbeef): Remove once Chrome is moved over to SetConfiguration.
-  virtual bool UpdateIce(const IceServers& configuration,
-                         const MediaConstraintsInterface* constraints) {
-    return false;
-  }
-  virtual bool UpdateIce(const IceServers& configuration) { return false; }
 
   // TODO(deadbeef): Make this pure virtual once all Chrome subclasses of
   // PeerConnectionInterface implement it.
@@ -1125,13 +1140,6 @@ class PeerConnectionObserver {
   virtual void OnTrack(
       rtc::scoped_refptr<RtpTransceiverInterface> transceiver) {}
 
-  // TODO(hbos,deadbeef): Add |OnAssociatedStreamsUpdated| with |receiver| and
-  // |streams| as arguments. This should be called when an existing receiver its
-  // associated streams updated. https://crbug.com/webrtc/8315
-  // This may be blocked on supporting multiple streams per sender or else
-  // this may count as the removal and addition of a track?
-  // https://crbug.com/webrtc/7932
-
   // Called when a receiver is completely removed. This is current (Plan B SDP)
   // behavior that occurs when processing the removal of a remote track, and is
   // called when the receiver is removed and the track is muted. When Unified
@@ -1143,6 +1151,30 @@ class PeerConnectionObserver {
   // TODO(hbos,deadbeef): Make pure virtual when all subclasses implement it.
   virtual void OnRemoveTrack(
       rtc::scoped_refptr<RtpReceiverInterface> receiver) {}
+};
+
+// PeerConnectionDependencies holds all of PeerConnections dependencies.
+// A dependency is distinct from a configuration as it defines significant
+// executable code that can be provided by a user of the API.
+//
+// All new dependencies should be added as a unique_ptr to allow the
+// PeerConnection object to be the definitive owner of the dependencies
+// lifetime making injection safer.
+struct PeerConnectionDependencies final {
+  explicit PeerConnectionDependencies(PeerConnectionObserver* observer_in)
+      : observer(observer_in) {}
+  // This object is not copyable or assignable.
+  PeerConnectionDependencies(const PeerConnectionDependencies&) = delete;
+  PeerConnectionDependencies& operator=(const PeerConnectionDependencies&) =
+      delete;
+  // This object is only moveable.
+  PeerConnectionDependencies(PeerConnectionDependencies&&) = default;
+  PeerConnectionDependencies& operator=(PeerConnectionDependencies&&) = default;
+  // Mandatory dependencies
+  PeerConnectionObserver* observer = nullptr;
+  // Optional dependencies
+  std::unique_ptr<cricket::PortAllocator> allocator;
+  std::unique_ptr<rtc::RTCCertificateGeneratorInterface> cert_generator;
 };
 
 // PeerConnectionFactoryInterface is the factory interface used for creating
@@ -1197,8 +1229,18 @@ class PeerConnectionFactoryInterface : public rtc::RefCountInterface {
   // Set the options to be used for subsequently created PeerConnections.
   virtual void SetOptions(const Options& options) = 0;
 
-  // |allocator| and |cert_generator| may be null, in which case default
-  // implementations will be used.
+  // The preferred way to create a new peer connection. Simply provide the
+  // configuration and a PeerConnectionDependencies structure.
+  // TODO(benwright): Make pure virtual once downstream mock PC factory classes
+  // are updated.
+  virtual rtc::scoped_refptr<PeerConnectionInterface> CreatePeerConnection(
+      const PeerConnectionInterface::RTCConfiguration& configuration,
+      PeerConnectionDependencies dependencies) {
+    return nullptr;
+  }
+
+  // Deprecated; |allocator| and |cert_generator| may be null, in which case
+  // default implementations will be used.
   //
   // |observer| must not be null.
   //

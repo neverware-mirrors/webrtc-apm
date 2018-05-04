@@ -36,10 +36,10 @@ CXX_LIBRARY(libwebrtc_apm.so): CPPFLAGS += \
 
 CXX_LIBRARY(libwebrtc_apm.so): LDLIBS += \
 	libaudio_processing.pic.a \
-	rtc_base/librtc_base.pic.a \
 	common_audio/libcommon_audio.pic.a \
 	system_wrappers/source/libsystem_wrappers.pic.a \
 	modules/audio_coding/libaudio_coding.pic.a \
+	rtc_base/librtc_base.pic.a \
 	libaudioproc_debug_proto.pic.a \
 	$(call get_pc_libs,$(webrtc_apm_PC_DEPS))
 

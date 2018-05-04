@@ -52,6 +52,7 @@ rtc_static_library("audio") {
     "../api:optional",
     "../api:transport_api",
     "../api/audio:aec3_factory",
+    "../api/audio:audio_frame_api",
     "../api/audio:audio_mixer_api",
     "../api/audio_codecs:audio_codecs_api",
     "../api/audio_codecs:builtin_audio_encoder_factory",
@@ -62,7 +63,6 @@ rtc_static_library("audio") {
     "../common_audio:common_audio_c",
     "../logging:rtc_event_audio",
     "../logging:rtc_event_log_api",
-    "../modules:module_api",
     "../modules/audio_coding",
     "../modules/audio_coding:audio_format_conversion",
     "../modules/audio_coding:audio_network_adaptor_config",
@@ -75,6 +75,7 @@ rtc_static_library("audio") {
     "../modules/rtp_rtcp",
     "../modules/rtp_rtcp:rtp_rtcp_format",
     "../modules/utility",
+    "../rtc_base:audio_format_to_string",
     "../rtc_base:checks",
     "../rtc_base:rate_limiter",
     "../rtc_base:rtc_base",
@@ -126,13 +127,13 @@ if (rtc_include_tests) {
       ":audio",
       ":audio_end_to_end_test",
       "../api:mock_audio_mixer",
+      "../api/audio:audio_frame_api",
       "../call:mock_call_interfaces",
       "../call:mock_rtp_interfaces",
       "../call:rtp_interfaces",
       "../call:rtp_receiver",
       "../common_audio",
       "../logging:mocks",
-      "../modules:module_api",
       "../modules/audio_device:mock_audio_device",
       "../modules/audio_mixer:audio_mixer_impl",
       "../modules/audio_processing:audio_processing_statistics",
@@ -189,11 +190,34 @@ if (rtc_include_tests) {
       }
 
       data = [
-        "../resources/voice_engine/audio_dtx16.wav",
         "../resources/voice_engine/audio_tiny16.wav",
         "../resources/voice_engine/audio_tiny48.wav",
-        "test/low_bandwidth_audio_test.py",
       ]
+
+      if (!build_with_chromium && is_clang) {
+        # Suppress warnings from the Chromium Clang plugin (bugs.webrtc.org/163)
+        suppressed_configs += [ "//build/config/clang:find_bad_constructs" ]
+      }
+    }
+
+    group("low_bandwidth_audio_perf_test") {
+      testonly = true
+
+      deps = [
+        ":low_bandwidth_audio_test",
+      ]
+
+      data = [
+        "test/low_bandwidth_audio_test.py",
+        "../resources/voice_engine/audio_tiny16.wav",
+        "../resources/voice_engine/audio_tiny48.wav",
+      ]
+      if (is_win) {
+        data += [ "${root_out_dir}/low_bandwidth_audio_test.exe" ]
+      } else {
+        data += [ "${root_out_dir}/low_bandwidth_audio_test" ]
+      }
+
       if (is_linux || is_android) {
         data += [
           "../tools_webrtc/audio_quality/linux/PolqaOem64",
@@ -212,10 +236,7 @@ if (rtc_include_tests) {
         data += [ "../tools_webrtc/audio_quality/mac/pesq" ]
       }
 
-      if (!build_with_chromium && is_clang) {
-        # Suppress warnings from the Chromium Clang plugin (bugs.webrtc.org/163)
-        suppressed_configs += [ "//build/config/clang:find_bad_constructs" ]
-      }
+      write_runtime_deps = "${root_out_dir}/${target_name}.runtime_deps"
     }
   }
 

@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 
+#include "api/array_view.h"
 #include "api/optional.h"
 #include "api/rtpreceiverinterface.h"
 #include "api/rtpsenderinterface.h"
@@ -29,9 +30,6 @@ enum class RtpTransceiverDirection {
   kInactive
 };
 
-// This is provided as a debugging aid. The format of the output is unspecified.
-std::ostream& operator<<(std::ostream& os, RtpTransceiverDirection direction);
-
 // Structure for initializing an RtpTransceiver in a call to
 // PeerConnectionInterface::AddTransceiver.
 // https://w3c.github.io/webrtc-pc/#dom-rtcrtptransceiverinit
@@ -40,9 +38,6 @@ struct RtpTransceiverInit final {
   RtpTransceiverDirection direction = RtpTransceiverDirection::kSendRecv;
 
   // The added RtpTransceiver will be added to these streams.
-  // TODO(shampson): Change name to stream_id & update native wrapper's naming
-  // as well.
-  // TODO(bugs.webrtc.org/7600): Not implemented.
   std::vector<std::string> stream_ids;
 
   // TODO(bugs.webrtc.org/7600): Not implemented.

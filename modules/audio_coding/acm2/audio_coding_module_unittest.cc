@@ -32,7 +32,6 @@
 #include "modules/audio_coding/neteq/tools/output_wav_file.h"
 #include "modules/audio_coding/neteq/tools/packet.h"
 #include "modules/audio_coding/neteq/tools/rtp_file_source.h"
-#include "modules/include/module_common_types.h"
 #include "rtc_base/criticalsection.h"
 #include "rtc_base/messagedigest.h"
 #include "rtc_base/numerics/safe_conversions.h"
@@ -166,7 +165,12 @@ class AudioCodingModuleTestOldApi : public ::testing::Test {
   void TearDown() {}
 
   void SetUp() {
-    acm_.reset(AudioCodingModule::Create(clock_));
+    acm_.reset(AudioCodingModule::Create([this] {
+      AudioCodingModule::Config config;
+      config.clock = clock_;
+      config.decoder_factory = CreateBuiltinAudioDecoderFactory();
+      return config;
+    }()));
 
     rtp_utility_->Populate(&rtp_header_);
 
