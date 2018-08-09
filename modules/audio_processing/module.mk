@@ -13,9 +13,6 @@ module_audio_processing_CXX_OBJECTS = \
 	modules/audio_processing/agc/utility.o \
 	modules/audio_processing/audio_buffer.o \
 	modules/audio_processing/audio_processing_impl.o \
-	modules/audio_processing/beamformer/array_util.o \
-	modules/audio_processing/beamformer/covariance_matrix_generator.o \
-	modules/audio_processing/beamformer/nonlinear_beamformer.o \
 	modules/audio_processing/echo_cancellation_impl.o \
 	modules/audio_processing/echo_control_mobile_impl.o \
 	modules/audio_processing/echo_detector/circular_buffer.o \
@@ -116,16 +113,22 @@ aec3_CXX_OBJECTS = \
 	modules/audio_processing/aec3/matched_filter.o \
 	modules/audio_processing/aec3/matched_filter_lag_aggregator.o \
 	modules/audio_processing/aec3/matrix_buffer.o \
+	modules/audio_processing/aec3/moving_average.o \
 	modules/audio_processing/aec3/render_buffer.o \
 	modules/audio_processing/aec3/render_delay_buffer.o \
 	modules/audio_processing/aec3/render_delay_controller.o \
 	modules/audio_processing/aec3/render_delay_controller_metrics.o \
 	modules/audio_processing/aec3/render_signal_analyzer.o \
 	modules/audio_processing/aec3/residual_echo_estimator.o \
+	modules/audio_processing/aec3/reverb_model.o \
+	modules/audio_processing/aec3/reverb_model_estimator.o \
+	modules/audio_processing/aec3/reverb_model_fallback.o \
 	modules/audio_processing/aec3/shadow_filter_update_gain.o \
 	modules/audio_processing/aec3/skew_estimator.o \
 	modules/audio_processing/aec3/stationarity_estimator.o \
 	modules/audio_processing/aec3/subtractor.o \
+	modules/audio_processing/aec3/subtractor_output.o \
+	modules/audio_processing/aec3/subtractor_output_analyzer.o \
 	modules/audio_processing/aec3/suppression_filter.o \
 	modules/audio_processing/aec3/suppression_gain.o \
 	modules/audio_processing/aec3/suppression_gain_limiter.o \
@@ -141,6 +144,7 @@ agc2_CXX_OBJECTS = \
 	modules/audio_processing/agc2/adaptive_agc.o \
 	modules/audio_processing/agc2/adaptive_digital_gain_applier.o \
 	modules/audio_processing/agc2/adaptive_mode_level_estimator.o \
+	modules/audio_processing/agc2/adaptive_mode_level_estimator_agc.o \
 	modules/audio_processing/agc2/biquad_filter.o \
 	modules/audio_processing/agc2/compute_interpolated_gain_curve.o \
 	modules/audio_processing/agc2/down_sampler.o \
@@ -154,7 +158,18 @@ agc2_CXX_OBJECTS = \
 	modules/audio_processing/agc2/noise_spectrum_estimator.o \
 	modules/audio_processing/agc2/saturation_protector.o \
 	modules/audio_processing/agc2/signal_classifier.o \
-	modules/audio_processing/agc2/vector_float_frame.o
+	modules/audio_processing/agc2/vad_with_level.o \
+	modules/audio_processing/agc2/vector_float_frame.o \
+	modules/audio_processing/agc2/rnn_vad/features_extraction.o \
+	modules/audio_processing/agc2/rnn_vad/fft_util.o \
+	modules/audio_processing/agc2/rnn_vad/lp_residual.o \
+	modules/audio_processing/agc2/rnn_vad/pitch_search.o \
+	modules/audio_processing/agc2/rnn_vad/pitch_search_internal.o \
+	modules/audio_processing/agc2/rnn_vad/rnn.o \
+	modules/audio_processing/agc2/rnn_vad/spectral_features.o \
+	modules/audio_processing/agc2/rnn_vad/spectral_features_internal.o \
+	third_party/rnnoise/src/kiss_fft.o \
+	third_party/rnnoise/src/rnn_vad_weights.o
 
 # Dependency of agc/agc.o
 vad_CXX_OBJECTS = \

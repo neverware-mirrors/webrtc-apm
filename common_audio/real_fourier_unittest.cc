@@ -15,10 +15,6 @@
 #include "common_audio/real_fourier_ooura.h"
 #include "test/gtest.h"
 
-#ifdef RTC_USE_OPENMAX_DL
-#include "common_audio/real_fourier_openmax.h"
-#endif
-
 namespace webrtc {
 
 using std::complex;
@@ -64,8 +60,7 @@ class RealFourierTest : public ::testing::Test {
         real_buffer_(RealFourier::AllocRealBuffer(4)),
         cplx_buffer_(RealFourier::AllocCplxBuffer(3)) {}
 
-  ~RealFourierTest() {
-  }
+  ~RealFourierTest() {}
 
   T rf_;
   const RealFourier::fft_real_scoper real_buffer_;

@@ -4,6 +4,12 @@
 
 include common.mk
 
+isac_vad_c_OBJECTS = \
+	modules/audio_coding/codecs/isac/main/source/filter_functions.o \
+	modules/audio_coding/codecs/isac/main/source/isac_vad.o \
+	modules/audio_coding/codecs/isac/main/source/pitch_estimator.o \
+	modules/audio_coding/codecs/isac/main/source/pitch_filter.o
+
 # From isac_c.ninja
 isac_c_C_OBJECTS = \
 	modules/audio_coding/codecs/isac/main/source/arith_routines.o \
@@ -17,8 +23,6 @@ isac_c_C_OBJECTS = \
 	modules/audio_coding/codecs/isac/main/source/encode_lpc_swb.o \
 	modules/audio_coding/codecs/isac/main/source/entropy_coding.o \
 	modules/audio_coding/codecs/isac/main/source/fft.o \
-	modules/audio_coding/codecs/isac/main/source/filter_functions.o \
-	modules/audio_coding/codecs/isac/main/source/filterbank_tables.o \
 	modules/audio_coding/codecs/isac/main/source/filterbanks.o \
 	modules/audio_coding/codecs/isac/main/source/intialize.o \
 	modules/audio_coding/codecs/isac/main/source/isac.o \
@@ -28,15 +32,13 @@ isac_c_C_OBJECTS = \
 	modules/audio_coding/codecs/isac/main/source/lpc_shape_swb12_tables.o \
 	modules/audio_coding/codecs/isac/main/source/lpc_shape_swb16_tables.o \
 	modules/audio_coding/codecs/isac/main/source/lpc_tables.o \
-	modules/audio_coding/codecs/isac/main/source/pitch_estimator.o \
-	modules/audio_coding/codecs/isac/main/source/pitch_filter.o \
 	modules/audio_coding/codecs/isac/main/source/pitch_gain_tables.o \
 	modules/audio_coding/codecs/isac/main/source/pitch_lag_tables.o \
 	modules/audio_coding/codecs/isac/main/source/spectrum_ar_model_tables.o \
 	modules/audio_coding/codecs/isac/main/source/transform.o
 
 CC_STATIC_LIBRARY(modules/audio_coding/libaudio_coding.pic.a): \
-	$(isac_c_C_OBJECTS)
+	$(isac_c_C_OBJECTS) $(isac_vad_c_OBJECTS)
 
 modules/audio_coding/libaudio_coding: \
 	CC_STATIC_LIBRARY(modules/audio_coding/libaudio_coding.pic.a)

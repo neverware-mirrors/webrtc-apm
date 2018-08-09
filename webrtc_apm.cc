@@ -146,24 +146,33 @@ int convert_to_aec3_config(
 
 	aec3_config->echo_removal_control = {
 		{
+		config->echo_removal_control.gain_rampup.initial_gain,
 		config->echo_removal_control.gain_rampup.first_non_zero_gain,
 		config->echo_removal_control.gain_rampup.non_zero_gain_blocks,
 		config->echo_removal_control.gain_rampup.full_gain_blocks
 		},
-		static_cast<bool>(config->echo_removal_control.has_clock_drift)
+		static_cast<bool>(config->echo_removal_control.has_clock_drift),
+		static_cast<bool>(
+			config->echo_removal_control.linear_and_stable_echo_path)
 	};
 
-	aec3_config->echo_model = {
-		config->echo_model.noise_floor_hold,
-		config->echo_model.min_noise_floor_power,
-		config->echo_model.stationary_gate_slope,
-		config->echo_model.noise_gate_power,
-		config->echo_model.noise_gate_slope,
-		config->echo_model.render_pre_window_size,
-		config->echo_model.render_post_window_size,
-		config->echo_model.nonlinear_hold,
-		config->echo_model.nonlinear_release
-	};
+	webrtc::EchoCanceller3Config::EchoModel echo_model;
+
+	echo_model.noise_floor_hold = config->echo_model.noise_floor_hold;
+	echo_model.min_noise_floor_power =
+			config->echo_model.min_noise_floor_power;
+	echo_model.stationary_gate_slope =
+			config->echo_model.stationary_gate_slope;
+	echo_model.noise_gate_power = config->echo_model.noise_gate_power;
+	echo_model.noise_gate_slope = config->echo_model.noise_gate_slope;
+	echo_model.render_pre_window_size =
+			config->echo_model.render_pre_window_size;
+	echo_model.render_post_window_size =
+			config->echo_model.render_post_window_size;
+	echo_model.nonlinear_hold = config->echo_model.nonlinear_hold;
+	echo_model.nonlinear_release = config->echo_model.nonlinear_release;
+
+	aec3_config->echo_model = echo_model;
 
 
 	return 0;

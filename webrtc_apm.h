@@ -62,11 +62,13 @@ struct ep_strength {
 	float mf;
 	float hf;
 	float default_len;
+	int reverb_based_on_render;
 	int echo_can_saturate;
 	int bounded_erl;
 };
 
 struct mask {
+	float m0;
 	float m1;
 	float m2;
 	float m3;
@@ -96,6 +98,7 @@ struct echo_audibility {
 struct render_levels {
 	float active_render_limit;
 	float poor_excitation_render_limit;
+	float poor_excitation_render_limit_ds8;
 };
 
 struct GainChanges {
@@ -113,10 +116,13 @@ struct gain_updates {
 	struct GainChanges normal;
 	struct GainChanges saturation;
 	struct GainChanges nonlinear;
+	float max_inc_factor;
+	float max_dec_factor_lf;
 	float floor_first_increase;
 };
 
 struct GainRampup {
+	float initial_gain;
 	float first_non_zero_gain;
 	int non_zero_gain_blocks;
 	int full_gain_blocks;
@@ -125,6 +131,7 @@ struct GainRampup {
 struct echo_removal_control {
 	struct GainRampup gain_rampup;
 	int has_clock_drift;
+	int linear_and_stable_echo_path;
 };
 
 struct echo_model {
@@ -135,12 +142,21 @@ struct echo_model {
 	float noise_gate_slope;
 	size_t render_pre_window_size;
 	size_t render_post_window_size;
+	size_t render_pre_window_size_init;
+	size_t render_post_window_size_init;
 	float nonlinear_hold;
 	float nonlinear_release;
 };
 
 struct suppressor {
 	size_t bands_with_reliable_coherence;
+	size_t nearend_average_blocks;
+	float mask_lf_enr_transparent;
+	float mask_lf_enr_suppress;
+	float mask_lf_emr_transparent;
+	float mask_hf_enr_transparent;
+	float mask_hf_enr_suppress;
+	float mask_hf_emr_transparent;
  };
 
 struct aec_config {

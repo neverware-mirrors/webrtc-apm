@@ -18,6 +18,12 @@
 #error "Either WEBRTC_WIN or WEBRTC_POSIX needs to be defined."
 #endif
 
+#if defined(WEBRTC_WIN)
+// Disable warning that we don't care about:
+// warning C4722: destructor never returns, potential memory leak
+#pragma warning(disable : 4722)
+#endif
+
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/nullsocketserver.h"
@@ -29,8 +35,8 @@
 namespace rtc {
 
 ThreadManager* ThreadManager::Instance() {
-  RTC_DEFINE_STATIC_LOCAL(ThreadManager, thread_manager, ());
-  return &thread_manager;
+  static ThreadManager* const thread_manager = new ThreadManager();
+  return thread_manager;
 }
 
 ThreadManager::~ThreadManager() {
@@ -61,8 +67,8 @@ ThreadManager::ThreadManager() : main_thread_ref_(CurrentThreadRef()) {
 }
 #endif
 
-Thread *ThreadManager::CurrentThread() {
-  return static_cast<Thread *>(pthread_getspecific(key_));
+Thread* ThreadManager::CurrentThread() {
+  return static_cast<Thread*>(pthread_getspecific(key_));
 }
 
 void ThreadManager::SetCurrentThread(Thread* thread) {
@@ -77,20 +83,19 @@ void ThreadManager::SetCurrentThread(Thread* thread) {
 
 #if defined(WEBRTC_WIN)
 ThreadManager::ThreadManager()
-    : key_(TlsAlloc()), main_thread_ref_(CurrentThreadRef()) {
+    : key_(TlsAlloc()), main_thread_ref_(CurrentThreadRef()) {}
+
+Thread* ThreadManager::CurrentThread() {
+  return static_cast<Thread*>(TlsGetValue(key_));
 }
 
-Thread *ThreadManager::CurrentThread() {
-  return static_cast<Thread *>(TlsGetValue(key_));
-}
-
-void ThreadManager::SetCurrentThread(Thread *thread) {
+void ThreadManager::SetCurrentThread(Thread* thread) {
   RTC_DCHECK(!CurrentThread() || !thread);
   TlsSetValue(key_, thread);
 }
 #endif
 
-Thread *ThreadManager::WrapCurrentThread() {
+Thread* ThreadManager::WrapCurrentThread() {
   Thread* result = CurrentThread();
   if (nullptr == result) {
     result = new Thread(SocketServer::CreateDefault());
@@ -112,9 +117,8 @@ bool ThreadManager::IsMainThread() {
 }
 
 Thread::ScopedDisallowBlockingCalls::ScopedDisallowBlockingCalls()
-  : thread_(Thread::Current()),
-    previous_state_(thread_->SetAllowBlockingCalls(false)) {
-}
+    : thread_(Thread::Current()),
+      previous_state_(thread_->SetAllowBlockingCalls(false)) {}
 
 Thread::ScopedDisallowBlockingCalls::~ScopedDisallowBlockingCalls() {
   RTC_DCHECK(thread_->IsCurrent());
@@ -357,7 +361,7 @@ void Thread::Send(const Location& posted_from,
   AssertBlockingIsAllowedOnCurrentThread();
 
   AutoThread thread;
-  Thread *current_thread = Thread::Current();
+  Thread* current_thread = Thread::Current();
   RTC_DCHECK(current_thread != nullptr);  // AutoThread ensures this
 
   bool ready = false;
@@ -418,7 +422,7 @@ void Thread::ReceiveSendsFromThread(const Thread* source) {
   while (PopSendMessageFromThread(source, &smsg)) {
     crit_.Leave();
 
-    smsg.msg.phandler->OnMessage(&smsg.msg);
+    Dispatch(&smsg.msg);
 
     crit_.Enter();
     *smsg.ready = true;

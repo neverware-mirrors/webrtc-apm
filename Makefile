@@ -29,7 +29,8 @@ CXX_LIBRARY(libwebrtc_apm.so): \
 	common_audio/libcommon_audio \
 	system_wrappers/source/libsystem_wrappers \
 	modules/audio_coding/libaudio_coding \
-	modules/audio_processing/libaudioproc_debug_proto
+	modules/audio_processing/libaudioproc_debug_proto \
+	absl
 
 CXX_LIBRARY(libwebrtc_apm.so): CPPFLAGS += \
 	$(call get_pc_cflags,$(webrtc_apm_PC_DEPS))
@@ -41,6 +42,7 @@ CXX_LIBRARY(libwebrtc_apm.so): LDLIBS += \
 	modules/audio_coding/libaudio_coding.pic.a \
 	rtc_base/librtc_base.pic.a \
 	libaudioproc_debug_proto.pic.a \
+	absl.pic.a \
 	$(call get_pc_libs,$(webrtc_apm_PC_DEPS))
 
 all: CXX_LIBRARY(libwebrtc_apm.so)

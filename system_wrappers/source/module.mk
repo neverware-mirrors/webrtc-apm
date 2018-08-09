@@ -10,6 +10,7 @@ system_wrappers_source_CXX_OBJECTS = \
 	system_wrappers/source/cpu_info.o \
 	system_wrappers/source/event.o \
 	system_wrappers/source/event_timer_posix.o \
+	system_wrappers/source/field_trial_default.o \
 	system_wrappers/source/rtp_to_ntp_estimator.o \
 	system_wrappers/source/sleep.o
 

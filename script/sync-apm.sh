@@ -23,6 +23,7 @@ mkdir -p ${TO}/modules
 rsync "${OPTIONS[@]}" ${FROM}/modules/audio_coding ${TO}/modules
 rsync "${OPTIONS[@]}" ${FROM}/modules/audio_processing ${TO}/modules
 rsync "${OPTIONS[@]}" ${FROM}/modules/include ${TO}/modules
+rsync "${OPTIONS[@]}" ${FROM}/modules/rtp_rtcp ${TO}/modules
 
 # Add video codecs headers for common includes to work.
 mkdir -p ${TO}/modules/video_coding/codecs
@@ -38,8 +39,15 @@ mkdir -p ${TO}/modules/video_coding/codecs/vp9
 rsync "${OPTIONS[@]}" ${FROM}/modules/video_coding/codecs/vp9/include \
 	${TO}/modules/video_coding/codecs/vp9
 
+rsync "${OPTIONS[@]}" ${FROM}/third_party/abseil-cpp/absl ${TO}
+
+mkdir -p ${TO}/third_party
+rsync "${OPTIONS[@]}" ${FROM}/third_party/rnnoise \
+	${TO}/third_party
+
 rsync "${OPTIONS[@]}" --include="*.cc" --include="*.h" --include="audio" \
-	--include="video" --exclude="*" ${FROM}/api/* ${TO}/api
+	--include="video" --include="transport" --include="units" \
+	--exclude="*" ${FROM}/api/* ${TO}/api
 
 # Adjust include path to use libevent header on chroot
 sed -i 's/include "base\/third_party\/libevent\/event\.h"/include <event.h>/' \

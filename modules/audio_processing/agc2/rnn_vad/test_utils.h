@@ -28,7 +28,12 @@ namespace test {
 
 constexpr float kFloatMin = std::numeric_limits<float>::min();
 
-// Fail for every pair from two equally sized rtc::ArrayView<float> views such
+// Fails for every pair from two equally sized rtc::ArrayView<float> views such
+// that the values in the pair do not match.
+void ExpectEqualFloatArray(rtc::ArrayView<const float> expected,
+                           rtc::ArrayView<const float> computed);
+
+// Fails for every pair from two equally sized rtc::ArrayView<float> views such
 // that their absolute error is above a given threshold.
 void ExpectNearAbsolute(rtc::ArrayView<const float> expected,
                         rtc::ArrayView<const float> computed,
@@ -84,10 +89,15 @@ class BinaryFileReader {
   std::vector<T> buf_;
 };
 
-// Factories for resource file readers; the functions below return a pair where
-// the first item is a reader unique pointer and the second the number of chunks
-// that can be read from the file.
-
+// Factories for resource file readers.
+// Creates a reader for the pitch search test data.
+std::unique_ptr<BinaryFileReader<float>> CreatePitchSearchTestDataReader();
+// The functions below return a pair where the first item is a reader unique
+// pointer and the second the number of chunks that can be read from the file.
+// Creates a reader for the PCM samples that casts from S16 to float and reads
+// chunks with length |frame_length|.
+std::pair<std::unique_ptr<BinaryFileReader<int16_t, float>>, const size_t>
+CreatePcmSamplesReader(const size_t frame_length);
 // Creates a reader for the pitch buffer content at 24 kHz.
 std::pair<std::unique_ptr<BinaryFileReader<float>>, const size_t>
 CreatePitchBuffer24kHzReader();
@@ -95,6 +105,18 @@ CreatePitchBuffer24kHzReader();
 // and gain values.
 std::pair<std::unique_ptr<BinaryFileReader<float>>, const size_t>
 CreateLpResidualAndPitchPeriodGainReader();
+// Creates a reader for the FFT coefficients.
+std::pair<std::unique_ptr<BinaryFileReader<float>>, const size_t>
+CreateFftCoeffsReader();
+// Instance a reader for the band energy coefficients.
+std::pair<std::unique_ptr<BinaryFileReader<float>>, const size_t>
+CreateBandEnergyCoeffsReader();
+// Creates a reader for the silence flags and the feature matrix.
+std::pair<std::unique_ptr<BinaryFileReader<float>>, const size_t>
+CreateSilenceFlagsFeatureMatrixReader();
+// Creates a reader for the VAD probabilities.
+std::pair<std::unique_ptr<BinaryFileReader<float>>, const size_t>
+CreateVadProbsReader();
 
 }  // namespace test
 }  // namespace rnn_vad

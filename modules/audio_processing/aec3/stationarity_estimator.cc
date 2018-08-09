@@ -40,6 +40,7 @@ void StationarityEstimator::Reset() {
   noise_.Reset();
   hangovers_.fill(0);
   stationarity_flags_.fill(false);
+  render_reverb_.Reset();
 }
 
 // Update just the noise estimator. Usefull until the delay is known
@@ -47,12 +48,15 @@ void StationarityEstimator::UpdateNoiseEstimator(
     rtc::ArrayView<const float> spectrum) {
   noise_.Update(spectrum);
   data_dumper_->DumpRaw("aec3_stationarity_noise_spectrum", noise_.Spectrum());
+  data_dumper_->DumpRaw("aec3_stationarity_is_block_stationary",
+                        IsBlockStationary());
 }
 
 void StationarityEstimator::UpdateStationarityFlags(
     const VectorBuffer& spectrum_buffer,
     int idx_current,
-    int num_lookahead) {
+    int num_lookahead,
+    float reverb_decay) {
   std::array<int, kWindowLength> indexes;
   int num_lookahead_bounded = std::min(num_lookahead, kWindowLength - 1);
   int idx = idx_current;
@@ -75,17 +79,30 @@ void StationarityEstimator::UpdateStationarityFlags(
       spectrum_buffer.DecIndex(indexes[kWindowLength - 1]),
       spectrum_buffer.OffsetIndex(idx_current, -(num_lookahead_bounded + 1)));
 
+  int idx_past = spectrum_buffer.IncIndex(idx_current);
+  render_reverb_.UpdateReverbContributionsNoFreqShaping(
+      spectrum_buffer.buffer[idx_past], 1.0f, reverb_decay);
   for (size_t k = 0; k < stationarity_flags_.size(); ++k) {
-    stationarity_flags_[k] =
-        EstimateBandStationarity(spectrum_buffer, indexes, k);
+    stationarity_flags_[k] = EstimateBandStationarity(
+        spectrum_buffer, render_reverb_.GetPowerSpectrum(), indexes, k);
   }
   UpdateHangover();
   SmoothStationaryPerFreq();
+}
 
+bool StationarityEstimator::IsBlockStationary() const {
+  float acum_stationarity = 0.f;
+  RTC_DCHECK_EQ(stationarity_flags_.size(), kFftLengthBy2Plus1);
+  for (size_t band = 0; band < stationarity_flags_.size(); ++band) {
+    bool st = IsBandStationary(band);
+    acum_stationarity += static_cast<float>(st);
+  }
+  return ((acum_stationarity * (1.f / kFftLengthBy2Plus1)) > 0.75f);
 }
 
 bool StationarityEstimator::EstimateBandStationarity(
     const VectorBuffer& spectrum_buffer,
+    const std::array<float, kFftLengthBy2Plus1>& reverb,
     const std::array<int, kWindowLength>& indexes,
     size_t band) const {
   constexpr float kThrStationarity = 10.f;
@@ -93,6 +110,7 @@ bool StationarityEstimator::EstimateBandStationarity(
   for (auto idx : indexes) {
     acum_power += spectrum_buffer.buffer[idx][band];
   }
+  acum_power += reverb[band];
   float noise = kWindowLength * GetStationarityPowerBand(band);
   RTC_CHECK_LT(0.f, noise);
   bool stationary = acum_power < kThrStationarity * noise;

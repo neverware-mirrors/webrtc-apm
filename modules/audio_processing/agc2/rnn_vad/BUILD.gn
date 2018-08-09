@@ -14,9 +14,13 @@ group("rnn_vad") {
   ]
 }
 
-source_set("lib") {
+rtc_source_set("lib") {
   sources = [
     "common.h",
+    "features_extraction.cc",
+    "features_extraction.h",
+    "fft_util.cc",
+    "fft_util.h",
     "lp_residual.cc",
     "lp_residual.h",
     "pitch_info.h",
@@ -25,17 +29,28 @@ source_set("lib") {
     "pitch_search_internal.cc",
     "pitch_search_internal.h",
     "ring_buffer.h",
+    "rnn.cc",
+    "rnn.h",
     "sequence_buffer.h",
+    "spectral_features.cc",
+    "spectral_features.h",
+    "spectral_features_internal.cc",
+    "spectral_features_internal.h",
     "symmetric_matrix_buffer.h",
   ]
   deps = [
+    "..:biquad_filter",
     "../../../../api:array_view",
+    "../../../../common_audio/",
     "../../../../rtc_base:checks",
+    "../../../../rtc_base:rtc_base_approved",
+    "//third_party/rnnoise:kiss_fft",
+    "//third_party/rnnoise:rnn_vad",
   ]
 }
 
 if (rtc_include_tests) {
-  source_set("lib_test") {
+  rtc_source_set("lib_test") {
     testonly = true
     sources = [
       "test_utils.cc",
@@ -47,12 +62,19 @@ if (rtc_include_tests) {
       "../../../../rtc_base:ptr_util",
       "../../../../test:fileutils",
       "../../../../test:test_support",
+      "//third_party/abseil-cpp/absl/memory",
     ]
   }
 
   unittest_resources = [
+    "../../../../resources/audio_processing/agc2/rnn_vad/band_energies.dat",
+    "../../../../resources/audio_processing/agc2/rnn_vad/fft.dat",
     "../../../../resources/audio_processing/agc2/rnn_vad/pitch_buf_24k.dat",
+    "../../../../resources/audio_processing/agc2/rnn_vad/pitch_search_int.dat",
     "../../../../resources/audio_processing/agc2/rnn_vad/pitch_lp_res.dat",
+    "../../../../resources/audio_processing/agc2/rnn_vad/samples.pcm",
+    "../../../../resources/audio_processing/agc2/rnn_vad/sil_features.dat",
+    "../../../../resources/audio_processing/agc2/rnn_vad/vad_prob.dat",
   ]
 
   if (is_ios) {
@@ -68,18 +90,29 @@ if (rtc_include_tests) {
   rtc_source_set("unittests") {
     testonly = true
     sources = [
+      "features_extraction_unittest.cc",
+      "fft_util_unittest.cc",
       "lp_residual_unittest.cc",
       "pitch_search_internal_unittest.cc",
       "pitch_search_unittest.cc",
       "ring_buffer_unittest.cc",
+      "rnn_unittest.cc",
+      "rnn_vad_unittest.cc",
       "sequence_buffer_unittest.cc",
+      "spectral_features_internal_unittest.cc",
+      "spectral_features_unittest.cc",
       "symmetric_matrix_buffer_unittest.cc",
     ]
     deps = [
       ":lib",
       ":lib_test",
+      "../..:audioproc_test_utils",
       "../../../../api:array_view",
+      "../../../../common_audio/",
+      "../../../../rtc_base:checks",
+      "../../../../rtc_base:logging",
       "../../../../test:test_support",
+      "//third_party/rnnoise:rnn_vad",
     ]
     data = unittest_resources
     if (is_ios) {

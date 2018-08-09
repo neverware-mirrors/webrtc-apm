@@ -616,4 +616,27 @@ void AdaptiveFirFilter::Constrain() {
                                 : 0;
 }
 
+void AdaptiveFirFilter::ScaleFilter(float factor) {
+  for (auto& H : H_) {
+    for (auto& re : H.re) {
+      re *= factor;
+    }
+    for (auto& im : H.im) {
+      im *= factor;
+    }
+  }
+  for (auto& h : h_) {
+    h *= factor;
+  }
+}
+
+// Set the filter coefficients.
+void AdaptiveFirFilter::SetFilter(const std::vector<FftData>& H) {
+  const size_t num_partitions = std::min(H_.size(), H.size());
+  for (size_t k = 0; k < num_partitions; ++k) {
+    std::copy(H[k].re.begin(), H[k].re.end(), H_[k].re.begin());
+    std::copy(H[k].im.begin(), H[k].im.end(), H_[k].im.begin());
+  }
+}
+
 }  // namespace webrtc

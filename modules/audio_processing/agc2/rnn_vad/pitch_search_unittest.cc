@@ -9,6 +9,8 @@
  */
 
 #include "modules/audio_processing/agc2/rnn_vad/pitch_search.h"
+#include "modules/audio_processing/agc2/rnn_vad/pitch_info.h"
+#include "modules/audio_processing/agc2/rnn_vad/pitch_search_internal.h"
 
 #include <array>
 
@@ -27,21 +29,18 @@ TEST(RnnVadTest, PitchSearchBitExactness) {
   const size_t num_frames = lp_residual_reader.second;
   std::array<float, 864> lp_residual;
   float expected_pitch_period, expected_pitch_gain;
-  PitchInfo last_pitch;
+  PitchEstimator pitch_estimator;
   {
     // TODO(bugs.webrtc.org/8948): Add when the issue is fixed.
     // FloatingPointExceptionObserver fpe_observer;
-
     for (size_t i = 0; i < num_frames; ++i) {
       SCOPED_TRACE(i);
-      lp_residual_reader.first->ReadChunk(
-          {lp_residual.data(), lp_residual.size()});
+      lp_residual_reader.first->ReadChunk(lp_residual);
       lp_residual_reader.first->ReadValue(&expected_pitch_period);
       lp_residual_reader.first->ReadValue(&expected_pitch_gain);
-      last_pitch =
-          PitchSearch({lp_residual.data(), lp_residual.size()}, last_pitch);
-      EXPECT_EQ(static_cast<size_t>(expected_pitch_period), last_pitch.period);
-      EXPECT_NEAR(expected_pitch_gain, last_pitch.gain, 1e-5f);
+      PitchInfo pitch_info = pitch_estimator.Estimate(lp_residual);
+      EXPECT_EQ(static_cast<size_t>(expected_pitch_period), pitch_info.period);
+      EXPECT_NEAR(expected_pitch_gain, pitch_info.gain, 1e-5f);
     }
   }
 }
