@@ -173,6 +173,37 @@ struct aec_config {
 	struct suppressor suppressor;
 };
 
+/* Corresponds to webrtc::GainControl::Mode */
+enum gain_control_mode {
+	ADAPTIVE_ANALOG,
+	ADAPTIVE_DIGITAL,
+	FIXED_DITIGAL,
+};
+
+/* Corresponds to webrtc::NoiseSuppression::Level */
+enum noise_suppression_level {
+	LOW,
+	MODERATE,
+	HIGH,
+	VERY_HIGH,
+};
+
+/* Equivalent to AudioProcessing::Config */
+struct apm_config {
+	int residual_echo_detector_enabled;
+	int high_pass_filter_enabled;
+	int pre_amplifier_enabled;
+	float pre_amplifier_fixed_gain_factor;
+	int gain_controller2_enabled;
+	float gain_controller2_fixed_gain_db;
+	int gain_controller2_adaptive_digital_mode;
+	int gain_control_compression_gain_db;
+	enum gain_control_mode agc_mode;
+	int gain_control_enabled;
+	enum noise_suppression_level ns_level;
+	int noise_suppression_enabled;
+};
+
 /* Pointer to a webrtc::AudioProcessing instance. */
 typedef void* webrtc_apm;
 
@@ -182,11 +213,13 @@ typedef void* webrtc_apm;
  *    num_channels - Number of channels of the forward stream.
  *    frame_rate - Frame rate used by forward stream.
  *    aec_config - Pointer to aec config.
+ *    apm_config - Pointer to apm config.
  */
 WEBRTC_APM_API webrtc_apm webrtc_apm_create(
 		unsigned int num_channels,
 		unsigned int frame_rate,
-		struct aec_config *aec_config);
+		struct aec_config *aec_config,
+		struct apm_config *apm_config);
 
 /* Destroys a webrtc_apm instance. */
 WEBRTC_APM_API void webrtc_apm_destroy(webrtc_apm apm);

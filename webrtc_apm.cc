@@ -178,9 +178,28 @@ int convert_to_aec3_config(
 	return 0;
 }
 
+int convert_to_ap_config(struct apm_config *apm_config,
+			 webrtc::AudioProcessing::Config *ap_config)
+{
+	ap_config->residual_echo_detector.enabled =
+		apm_config->residual_echo_detector_enabled;
+	ap_config->high_pass_filter.enabled =
+		apm_config->high_pass_filter_enabled;
+	ap_config->pre_amplifier.enabled =
+		apm_config->pre_amplifier_enabled;
+	ap_config->pre_amplifier.fixed_gain_factor =
+		apm_config->pre_amplifier_fixed_gain_factor;
+	ap_config->gain_controller2.enabled =
+		apm_config->gain_controller2_enabled;
+	ap_config->gain_controller2.fixed_gain_db =
+		apm_config->gain_controller2_fixed_gain_db;
+	return 0;
+}
+
 webrtc_apm webrtc_apm_create(unsigned int num_channels,
 			     unsigned int frame_rate,
-			     struct aec_config *config)
+			     struct aec_config *aec_config,
+			     struct apm_config *apm_config)
 {
 	int err;
 	webrtc::AudioProcessing *apm;
@@ -188,9 +207,12 @@ webrtc_apm webrtc_apm_create(unsigned int num_channels,
 	webrtc::AudioProcessingBuilder apm_builder;
 	webrtc::EchoCanceller3Config aec3_config;
 	std::unique_ptr<webrtc::EchoControlFactory> ec3_factory;
+	webrtc::AudioProcessing::Config ap_config;
+	webrtc::GainControl::Mode agc_mode;
+	webrtc::NoiseSuppression::Level ns_level;
 
-	if (config) {
-		convert_to_aec3_config(config, &aec3_config);
+	if (aec_config) {
+		convert_to_aec3_config(aec_config, &aec3_config);
 		ec3_factory.reset(
 			new webrtc::EchoCanceller3Factory(aec3_config));
 	} else {
@@ -210,6 +232,52 @@ webrtc_apm webrtc_apm_create(unsigned int num_channels,
 
 	apm_builder.SetEchoControlFactory(std::move(ec3_factory));
 	apm = apm_builder.Create();
+
+	if (apm_config) {
+		convert_to_ap_config(apm_config, &ap_config);
+		apm->ApplyConfig(ap_config);
+
+		/* Configure AGC1 */
+		switch (apm_config->agc_mode) {
+		case ADAPTIVE_ANALOG:
+			agc_mode = webrtc::GainControl::Mode::kAdaptiveAnalog;
+			break;
+		case ADAPTIVE_DIGITAL:
+			agc_mode = webrtc::GainControl::Mode::kAdaptiveDigital;
+			break;
+		case FIXED_DITIGAL:
+			agc_mode = webrtc::GainControl::Mode::kFixedDigital;
+			break;
+		default:
+			return NULL;
+		}
+		apm->gain_control()->set_compression_gain_db(
+				apm_config->gain_control_compression_gain_db);
+		apm->gain_control()->set_mode(agc_mode);
+		apm->gain_control()->Enable(
+				apm_config->gain_control_enabled);
+		/* Configure noise suppression */
+		switch (apm_config->ns_level) {
+		case LOW:
+			ns_level = webrtc::NoiseSuppression::Level::kLow;
+			break;
+		case MODERATE:
+			ns_level = webrtc::NoiseSuppression::Level::kModerate;
+			break;
+		case HIGH:
+			ns_level = webrtc::NoiseSuppression::Level::kHigh;
+			break;
+		case VERY_HIGH:
+			ns_level = webrtc::NoiseSuppression::Level::kVeryHigh;
+			break;
+		default:
+			return NULL;
+
+		}
+		apm->noise_suppression()->set_level(ns_level);
+		apm->noise_suppression()->Enable(
+				apm_config->noise_suppression_enabled);
+	}
 
 	err = apm->Initialize(frame_rate, frame_rate, frame_rate,
 			      channel_layout, channel_layout, channel_layout);
