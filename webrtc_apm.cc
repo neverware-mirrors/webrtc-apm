@@ -17,17 +17,27 @@ int convert_to_aec3_config(
 		const struct aec_config *config,
 		webrtc::EchoCanceller3Config *aec3_config)
 {
-	aec3_config->delay = {
-		config->delay.default_delay,
-		config->delay.down_sampling_factor,
-		config->delay.num_filters,
-		config->delay.api_call_jitter_blocks,
+	aec3_config->delay.default_delay =
+		config->delay.default_delay;
+	aec3_config->delay.down_sampling_factor =
+		config->delay.down_sampling_factor;
+	aec3_config->delay.num_filters =
+		config->delay.num_filters;
+	aec3_config->delay.api_call_jitter_blocks =
+		config->delay.api_call_jitter_blocks;
+	aec3_config->delay.min_echo_path_delay_blocks =
 		config->delay.min_echo_path_delay_blocks,
-		config->delay.delay_headroom_blocks,
-		config->delay.hysteresis_limit_1_blocks,
+	aec3_config->delay.delay_headroom_blocks =
+		config->delay.delay_headroom_blocks;
+	aec3_config->delay.hysteresis_limit_1_blocks =
+		config->delay.hysteresis_limit_1_blocks;
+	aec3_config->delay.hysteresis_limit_2_blocks =
 		config->delay.hysteresis_limit_2_blocks,
-		config->delay.skew_hysteresis_blocks
-	};
+	aec3_config->delay.skew_hysteresis_blocks =
+		config->delay.skew_hysteresis_blocks;
+	aec3_config->delay.fixed_capture_delay_samples =
+		config->delay.fixed_capture_delay_samples;
+
 	aec3_config->filter.main = {
 		config->filter.main.length_blocks,
 		config->filter.main.leakage_converged,
@@ -54,20 +64,30 @@ int convert_to_aec3_config(
 	};
 	aec3_config->filter.config_change_duration_blocks =
 		config->filter.config_change_duration_blocks;
+	aec3_config->filter.initial_state_seconds =
+		config->filter.initial_state_seconds;
+	aec3_config->filter.conservative_initial_phase =
+		static_cast<bool>(config->filter.conservative_initial_phase);
+	aec3_config->filter.enable_shadow_filter_output_usage =
+		static_cast<bool>(
+			config->filter.enable_shadow_filter_output_usage);
 	aec3_config->erle = {
 		config->erle.min,
 		config->erle.max_l,
 		config->erle.max_h,
+		static_cast<bool>(config->erle.onset_detection)
 	};
 	aec3_config->ep_strength = {
 		config->ep_strength.lf,
 		config->ep_strength.mf,
 		config->ep_strength.hf,
 		config->ep_strength.default_len,
+		static_cast<bool>(config->ep_strength.reverb_based_on_render),
 		static_cast<bool>(config->ep_strength.echo_can_saturate),
 		static_cast<bool>(config->ep_strength.bounded_erl)
 	};
 
+	aec3_config->gain_mask.m0 = config->gain_mask.m0;
 	aec3_config->gain_mask.m1 = config->gain_mask.m1;
 	aec3_config->gain_mask.m2 = config->gain_mask.m2;
 	aec3_config->gain_mask.m3 = config->gain_mask.m3;
@@ -100,49 +120,8 @@ int convert_to_aec3_config(
 	aec3_config->render_levels = {
 		config->render_levels.active_render_limit,
 		config->render_levels.poor_excitation_render_limit,
+		config->render_levels.poor_excitation_render_limit_ds8,
 	};
-	aec3_config->gain_updates.low_noise = {
-		config->gain_updates.low_noise.max_inc,
-		config->gain_updates.low_noise.max_dec,
-		config->gain_updates.low_noise.rate_inc,
-		config->gain_updates.low_noise.rate_dec,
-		config->gain_updates.low_noise.min_inc,
-		config->gain_updates.low_noise.min_dec,
-	};
-	aec3_config->gain_updates.initial = {
-		config->gain_updates.initial.max_inc,
-		config->gain_updates.initial.max_dec,
-		config->gain_updates.initial.rate_inc,
-		config->gain_updates.initial.rate_dec,
-		config->gain_updates.initial.min_inc,
-		config->gain_updates.initial.min_dec,
-	};
-	aec3_config->gain_updates.normal = {
-		config->gain_updates.normal.max_inc,
-		config->gain_updates.normal.max_dec,
-		config->gain_updates.normal.rate_inc,
-		config->gain_updates.normal.rate_dec,
-		config->gain_updates.normal.min_inc,
-		config->gain_updates.normal.min_dec,
-	};
-	aec3_config->gain_updates.saturation = {
-		config->gain_updates.saturation.max_inc,
-		config->gain_updates.saturation.max_dec,
-		config->gain_updates.saturation.rate_inc,
-		config->gain_updates.saturation.rate_dec,
-		config->gain_updates.saturation.min_inc,
-		config->gain_updates.saturation.min_dec,
-	};
-	aec3_config->gain_updates.nonlinear = {
-		config->gain_updates.nonlinear.max_inc,
-		config->gain_updates.nonlinear.max_dec,
-		config->gain_updates.nonlinear.rate_inc,
-		config->gain_updates.nonlinear.rate_dec,
-		config->gain_updates.nonlinear.min_inc,
-		config->gain_updates.nonlinear.min_dec,
-	};
-	aec3_config->gain_updates.floor_first_increase =
-		config->gain_updates.floor_first_increase;
 
 	aec3_config->echo_removal_control = {
 		{
@@ -169,11 +148,69 @@ int convert_to_aec3_config(
 			config->echo_model.render_pre_window_size;
 	echo_model.render_post_window_size =
 			config->echo_model.render_post_window_size;
+	echo_model.render_pre_window_size_init =
+			config->echo_model.render_pre_window_size_init;
+	echo_model.render_post_window_size_init =
+			config->echo_model.render_post_window_size_init;
 	echo_model.nonlinear_hold = config->echo_model.nonlinear_hold;
 	echo_model.nonlinear_release = config->echo_model.nonlinear_release;
 
 	aec3_config->echo_model = echo_model;
 
+	aec3_config->suppressor.normal_tuning.mask_lf.enr_transparent =
+		config->suppressor.normal_tuning.mask_lf.enr_transparent;
+	aec3_config->suppressor.normal_tuning.mask_lf.enr_suppress =
+		config->suppressor.normal_tuning.mask_lf.enr_suppress;
+	aec3_config->suppressor.normal_tuning.mask_lf.emr_transparent =
+		config->suppressor.normal_tuning.mask_lf.emr_transparent;
+	aec3_config->suppressor.normal_tuning.mask_hf.enr_transparent =
+		config->suppressor.normal_tuning.mask_hf.enr_transparent;
+	aec3_config->suppressor.normal_tuning.mask_hf.enr_suppress =
+		config->suppressor.normal_tuning.mask_hf.enr_suppress;
+	aec3_config->suppressor.normal_tuning.mask_hf.emr_transparent =
+		config->suppressor.normal_tuning.mask_hf.emr_transparent;
+	aec3_config->suppressor.normal_tuning.max_inc_factor =
+		config->suppressor.normal_tuning.max_inc_factor;
+	aec3_config->suppressor.normal_tuning.max_dec_factor_lf =
+		config->suppressor.normal_tuning.max_dec_factor_lf;
+
+	aec3_config->suppressor.nearend_tuning.mask_lf.enr_transparent =
+		config->suppressor.nearend_tuning.mask_lf.enr_transparent;
+	aec3_config->suppressor.nearend_tuning.mask_lf.enr_suppress =
+		config->suppressor.nearend_tuning.mask_lf.enr_suppress;
+	aec3_config->suppressor.nearend_tuning.mask_lf.emr_transparent =
+		config->suppressor.nearend_tuning.mask_lf.emr_transparent;
+	aec3_config->suppressor.nearend_tuning.mask_hf.enr_transparent =
+		config->suppressor.nearend_tuning.mask_hf.enr_transparent;
+	aec3_config->suppressor.nearend_tuning.mask_hf.enr_suppress =
+		config->suppressor.nearend_tuning.mask_hf.enr_suppress,
+	aec3_config->suppressor.nearend_tuning.mask_hf.emr_transparent =
+		config->suppressor.nearend_tuning.mask_hf.emr_transparent;
+	aec3_config->suppressor.nearend_tuning.max_inc_factor =
+		config->suppressor.nearend_tuning.max_inc_factor;
+	aec3_config->suppressor.nearend_tuning.max_dec_factor_lf =
+		config->suppressor.nearend_tuning.max_dec_factor_lf;
+
+	aec3_config->suppressor.dominant_nearend_detection.enr_threshold =
+		config->suppressor.dominant_nearend_detection.enr_threshold;
+	aec3_config->suppressor.dominant_nearend_detection.snr_threshold =
+		config->suppressor.dominant_nearend_detection.snr_threshold;
+	aec3_config->suppressor.dominant_nearend_detection.hold_duration =
+		config->suppressor.dominant_nearend_detection.hold_duration;
+	aec3_config->suppressor.dominant_nearend_detection.trigger_threshold =
+		config->suppressor.dominant_nearend_detection.trigger_threshold;
+
+	aec3_config->suppressor.high_bands_suppression.enr_threshold =
+		config->suppressor.high_bands_suppression.enr_threshold;
+	aec3_config->suppressor.high_bands_suppression.max_gain_during_echo =
+		config->suppressor.high_bands_suppression.max_gain_during_echo;
+
+	aec3_config->suppressor.floor_first_increase =
+		config->suppressor.floor_first_increase;
+	aec3_config->suppressor.enforce_transparent =
+		config->suppressor.enforce_transparent;
+	aec3_config->suppressor.enforce_empty_higher_bands =
+		config->suppressor.enforce_empty_higher_bands;
 
 	return 0;
 }

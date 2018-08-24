@@ -32,7 +32,7 @@ common_audio_cc_CXX_OBJECTS = \
 # TODO(hychao): figure out if common_audio/real_fourier_openmax.o
 # is needed. Build it requires linking openmax dl library.
 common_audio_c_C_OBJECTS = \
-	common_audio/fft4g.o \
+	common_audio/third_party/fft4g/fft4g.o \
 	common_audio/ring_buffer.o \
 	common_audio/signal_processing/auto_corr_to_refl_coef.o \
 	common_audio/signal_processing/auto_correlation.o \
@@ -71,7 +71,7 @@ common_audio_c_C_OBJECTS = \
 	common_audio/signal_processing/complex_fft.o \
 	common_audio/signal_processing/complex_bit_reverse.o \
 	common_audio/signal_processing/filter_ar_fast_q12.o \
-	common_audio/signal_processing/spl_sqrt_floor.o
+	common_audio/third_party/spl_sqrt_floor/spl_sqrt_floor.o
 
 ifeq (${USE_NEON},1)
 common_audio_CXX_OBJECTS += \

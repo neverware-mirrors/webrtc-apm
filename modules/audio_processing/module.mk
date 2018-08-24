@@ -14,7 +14,9 @@ module_audio_processing_CXX_OBJECTS = \
 	modules/audio_processing/audio_buffer.o \
 	modules/audio_processing/audio_processing_impl.o \
 	modules/audio_processing/echo_cancellation_impl.o \
+	modules/audio_processing/echo_cancellation_proxy.o \
 	modules/audio_processing/echo_control_mobile_impl.o \
+	modules/audio_processing/echo_control_mobile_proxy.o \
 	modules/audio_processing/echo_detector/circular_buffer.o \
 	modules/audio_processing/echo_detector/mean_variance_estimator.o \
 	modules/audio_processing/echo_detector/moving_max.o \
@@ -90,11 +92,11 @@ aec3_CXX_OBJECTS = \
 	modules/audio_processing/aec3/aec3_common.o \
 	modules/audio_processing/aec3/aec3_fft.o \
 	modules/audio_processing/aec3/aec_state.o \
+	modules/audio_processing/aec3/block_delay_buffer.o \
 	modules/audio_processing/aec3/block_framer.o \
 	modules/audio_processing/aec3/block_processor.o \
 	modules/audio_processing/aec3/block_processor_metrics.o \
 	modules/audio_processing/aec3/cascaded_biquad_filter.o \
-	modules/audio_processing/aec3/coherence_gain.o \
 	modules/audio_processing/aec3/comfort_noise_generator.o \
 	modules/audio_processing/aec3/decimator.o \
 	modules/audio_processing/aec3/downsampled_render_buffer.o \
@@ -120,6 +122,8 @@ aec3_CXX_OBJECTS = \
 	modules/audio_processing/aec3/render_delay_controller_metrics.o \
 	modules/audio_processing/aec3/render_signal_analyzer.o \
 	modules/audio_processing/aec3/residual_echo_estimator.o \
+	modules/audio_processing/aec3/reverb_decay_estimator.o \
+	modules/audio_processing/aec3/reverb_frequency_response.o \
 	modules/audio_processing/aec3/reverb_model.o \
 	modules/audio_processing/aec3/reverb_model_estimator.o \
 	modules/audio_processing/aec3/reverb_model_fallback.o \

@@ -45,8 +45,6 @@ void CopyFromConfigToEvent(const webrtc::InternalAPMConfig& config,
 
   pb_cfg->set_transient_suppression_enabled(
       config.transient_suppression_enabled);
-  pb_cfg->set_intelligibility_enhancer_enabled(
-      config.intelligibility_enhancer_enabled);
 
   pb_cfg->set_pre_amplifier_enabled(config.pre_amplifier_enabled);
   pb_cfg->set_pre_amplifier_fixed_gain_factor(
@@ -74,7 +72,8 @@ AecDumpImpl::~AecDumpImpl() {
   thread_sync_event.Wait(rtc::Event::kForever);
 }
 
-void AecDumpImpl::WriteInitMessage(const ProcessingConfig& api_format) {
+void AecDumpImpl::WriteInitMessage(const ProcessingConfig& api_format,
+                                   int64_t time_now_ms) {
   auto task = CreateWriteToFileTask();
   auto* event = task->GetEvent();
   event->set_type(audioproc::Event::INIT);
@@ -95,6 +94,7 @@ void AecDumpImpl::WriteInitMessage(const ProcessingConfig& api_format) {
       static_cast<int32_t>(api_format.reverse_input_stream().num_channels()));
   msg->set_num_reverse_output_channels(
       api_format.reverse_output_stream().num_channels());
+  msg->set_timestamp_ms(time_now_ms);
 
   worker_queue_->PostTask(std::unique_ptr<rtc::QueuedTask>(std::move(task)));
 }

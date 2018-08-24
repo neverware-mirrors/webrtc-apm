@@ -32,7 +32,6 @@
 #include "modules/include/module_common_types.h"
 #include "modules/rtp_rtcp/source/rtp_format.h"
 #include "rtc_base/constructormagic.h"
-#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 
@@ -41,22 +40,18 @@ class RtpPacketizerVp8 : public RtpPacketizer {
  public:
   // Initialize with payload from encoder.
   // The payload_data must be exactly one encoded VP8 frame.
-  RtpPacketizerVp8(const RTPVideoHeaderVP8& hdr_info,
-                   size_t max_payload_len,
-                   size_t last_packet_reduction_len);
+  RtpPacketizerVp8(rtc::ArrayView<const uint8_t> payload,
+                   PayloadSizeLimits limits,
+                   const RTPVideoHeaderVP8& hdr_info);
 
   ~RtpPacketizerVp8() override;
 
-  size_t SetPayloadData(const uint8_t* payload_data,
-                        size_t payload_size,
-                        const RTPFragmentationHeader* fragmentation) override;
+  size_t NumPackets() const override;
 
   // Get the next payload with VP8 payload header.
   // Write payload and set marker bit of the |packet|.
   // Returns true on success, false otherwise.
   bool NextPacket(RtpPacketToSend* packet) override;
-
-  std::string ToString() override;
 
  private:
   typedef struct {
@@ -78,11 +73,7 @@ class RtpPacketizerVp8 : public RtpPacketizer {
   static const int kYBit = 0x20;
 
   // Calculate all packet sizes and load to packet info queue.
-  int GeneratePackets();
-
-  // Splits given part of payload to packets with a given capacity. The last
-  // packet should be reduced by last_packet_reduction_len_.
-  void GeneratePacketsSplitPayloadBalanced(size_t payload_len, size_t capacity);
+  void GeneratePackets(size_t payload_len);
 
   // Insert packet into packet queue.
   void QueuePacket(size_t start_pos, size_t packet_size, bool first_packet);
@@ -142,12 +133,8 @@ class RtpPacketizerVp8 : public RtpPacketizer {
   bool PictureIdPresent() const { return (PictureIdLength() > 0); }
 
   const uint8_t* payload_data_;
-  size_t payload_size_;
-  const size_t vp8_fixed_payload_descriptor_bytes_;  // Length of VP8 payload
-                                                     // descriptors' fixed part.
   const RTPVideoHeaderVP8 hdr_info_;
-  const size_t max_payload_len_;
-  const size_t last_packet_reduction_len_;
+  const PayloadSizeLimits limits_;
   InfoQueue packets_;
 
   RTC_DISALLOW_COPY_AND_ASSIGN(RtpPacketizerVp8);
