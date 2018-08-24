@@ -67,17 +67,6 @@ class AecState {
   // aec.
   bool UseStationaryProperties() const { return use_stationary_properties_; }
 
-  // Returns true if the current render block is estimated as stationary.
-  bool IsBlockStationary() const {
-    if (UseStationaryProperties()) {
-      return echo_audibility_.IsBlockStationary();
-    } else {
-      // Assume that a non stationary block when the use of
-      // stationary properties are not enabled.
-      return false;
-    }
-  }
-
   // Returns the ERLE.
   const std::array<float, kFftLengthBy2Plus1>& Erle() const {
     return erle_estimator_.Erle();
@@ -85,10 +74,6 @@ class AecState {
 
   // Returns any uncertainty in the ERLE estimate.
   absl::optional<float> ErleUncertainty() const {
-    if (allow_linear_mode_with_diverged_filter_ && diverged_linear_filter_) {
-      return 10.f;
-    }
-
     if (!filter_has_had_time_to_converge_ &&
         use_uncertainty_until_sufficiently_adapted_) {
       return uncertainty_before_convergence_;
@@ -135,6 +120,11 @@ class AecState {
   // Returns the decay factor for the echo reverberation.
   float ReverbDecay() const { return reverb_model_estimator_.ReverbDecay(); }
 
+  // Return the frequency response of the reverberant echo.
+  rtc::ArrayView<const float> GetReverbFrequencyResponse() const {
+    return reverb_model_estimator_.GetReverbFrequencyResponse();
+  }
+
   // Returns the upper limit for the echo suppression gain.
   float SuppressionGainLimit() const {
     return suppression_gain_limiter_.Limit();
@@ -150,8 +140,9 @@ class AecState {
     return filter_has_had_time_to_converge_;
   }
 
-  // Returns whether the filter adaptation is still in the initial state.
-  bool InitialState() const { return initial_state_; }
+  // Returns whether the transition for going out of the initial stated has
+  // been triggered.
+  bool TransitionTriggered() const { return transition_triggered_; }
 
   // Updates the aec state.
   void Update(const absl::optional<DelayEstimate>& external_delay,
@@ -163,11 +154,6 @@ class AecState {
               const std::array<float, kFftLengthBy2Plus1>& Y2,
               const SubtractorOutput& subtractor_output,
               rtc::ArrayView<const float> y);
-
-  // Returns the tail freq. response of the linear filter.
-  rtc::ArrayView<const float> GetFreqRespTail() const {
-    return reverb_model_estimator_.GetFreqRespTail();
-  }
 
   // Returns filter length in blocks.
   int FilterLengthBlocks() const {
@@ -186,17 +172,15 @@ class AecState {
   const bool allow_transparent_mode_;
   const bool use_stationary_properties_;
   const bool enforce_delay_after_realignment_;
-  const bool allow_linear_mode_with_diverged_filter_;
   const bool early_filter_usage_activated_;
   const bool use_short_initial_state_;
   const bool convergence_trigger_linear_mode_;
   const bool no_alignment_required_for_linear_mode_;
   const bool use_uncertainty_until_sufficiently_adapted_;
-  const bool transparent_mode_enforces_nonlinear_mode_;
   const float uncertainty_before_convergence_;
   const bool early_entry_to_converged_mode_;
-  const bool conservative_filter_divergence_;
   const bool early_limiter_deactivation_;
+  const bool reset_erle_after_echo_path_changes_;
   ErlEstimator erl_estimator_;
   ErleEstimator erle_estimator_;
   size_t capture_block_counter_ = 0;
@@ -204,7 +188,6 @@ class AecState {
   size_t blocks_with_proper_filter_adaptation_ = 0;
   size_t blocks_with_active_render_ = 0;
   bool usable_linear_estimate_ = false;
-  bool diverged_linear_filter_ = false;
   bool capture_signal_saturation_ = false;
   bool echo_saturation_ = false;
   bool transparent_mode_ = false;
@@ -215,6 +198,7 @@ class AecState {
   std::vector<float> max_render_;
   bool filter_has_had_time_to_converge_ = false;
   bool initial_state_ = true;
+  bool transition_triggered_ = false;
   const float gain_rampup_increase_;
   SuppressionGainUpperLimiter suppression_gain_limiter_;
   FilterAnalyzer filter_analyzer_;

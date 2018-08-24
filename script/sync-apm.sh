@@ -24,6 +24,7 @@ rsync "${OPTIONS[@]}" ${FROM}/modules/audio_coding ${TO}/modules
 rsync "${OPTIONS[@]}" ${FROM}/modules/audio_processing ${TO}/modules
 rsync "${OPTIONS[@]}" ${FROM}/modules/include ${TO}/modules
 rsync "${OPTIONS[@]}" ${FROM}/modules/rtp_rtcp ${TO}/modules
+rsync "${OPTIONS[@]}" ${FROM}/modules/third_party ${TO}/modules
 
 # Add video codecs headers for common includes to work.
 mkdir -p ${TO}/modules/video_coding/codecs

@@ -27,6 +27,7 @@ struct delay {
 	size_t hysteresis_limit_1_blocks;
 	size_t hysteresis_limit_2_blocks;
 	size_t skew_hysteresis_blocks;
+	size_t fixed_capture_delay_samples;
 };
 
 struct MainConfiguration {
@@ -49,12 +50,16 @@ struct filter {
 	struct MainConfiguration main_initial;
 	struct ShadowConfiguration shadow_initial;
 	int config_change_duration_blocks;
+	float initial_state_seconds;
+	int conservative_initial_phase;
+	int enable_shadow_filter_output_usage;
 };
 
 struct erle {
 	float min;
 	float max_l;
 	float max_h;
+	int onset_detection;
 };
 
 struct ep_strength {
@@ -101,26 +106,6 @@ struct render_levels {
 	float poor_excitation_render_limit_ds8;
 };
 
-struct GainChanges {
-	float max_inc;
-	float max_dec;
-	float rate_inc;
-	float rate_dec;
-	float min_inc;
-	float min_dec;
-};
-
-struct gain_updates {
-	struct GainChanges low_noise;
-	struct GainChanges initial;
-	struct GainChanges normal;
-	struct GainChanges saturation;
-	struct GainChanges nonlinear;
-	float max_inc_factor;
-	float max_dec_factor_lf;
-	float floor_first_increase;
-};
-
 struct GainRampup {
 	float initial_gain;
 	float first_non_zero_gain;
@@ -148,16 +133,41 @@ struct echo_model {
 	float nonlinear_release;
 };
 
+struct masking_thresholds {
+	float enr_transparent;
+	float enr_suppress;
+	float emr_transparent;
+};
+
+struct tuning {
+	struct masking_thresholds mask_lf;
+	struct masking_thresholds mask_hf;
+	float max_inc_factor;
+	float max_dec_factor_lf;
+};
+
+struct dominant_nearend_detection {
+	float enr_threshold;
+	float snr_threshold;
+	int hold_duration;
+	int trigger_threshold;
+};
+
+struct high_bands_suppression {
+	float enr_threshold;
+	float max_gain_during_echo;
+};
+
 struct suppressor {
-	size_t bands_with_reliable_coherence;
 	size_t nearend_average_blocks;
-	float mask_lf_enr_transparent;
-	float mask_lf_enr_suppress;
-	float mask_lf_emr_transparent;
-	float mask_hf_enr_transparent;
-	float mask_hf_enr_suppress;
-	float mask_hf_emr_transparent;
- };
+	struct tuning normal_tuning;
+	struct tuning nearend_tuning;
+	struct dominant_nearend_detection dominant_nearend_detection;
+	struct high_bands_suppression high_bands_suppression;
+	float floor_first_increase;
+	int enforce_transparent;
+	int enforce_empty_higher_bands;
+};
 
 struct aec_config {
 	struct delay delay;
@@ -167,7 +177,6 @@ struct aec_config {
 	struct mask gain_mask;
 	struct echo_audibility echo_audibility;
 	struct render_levels render_levels;
-	struct gain_updates gain_updates;
 	struct echo_removal_control echo_removal_control;
 	struct echo_model echo_model;
 	struct suppressor suppressor;

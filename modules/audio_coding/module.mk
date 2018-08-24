@@ -22,7 +22,6 @@ isac_c_C_OBJECTS = \
 	modules/audio_coding/codecs/isac/main/source/encode.o \
 	modules/audio_coding/codecs/isac/main/source/encode_lpc_swb.o \
 	modules/audio_coding/codecs/isac/main/source/entropy_coding.o \
-	modules/audio_coding/codecs/isac/main/source/fft.o \
 	modules/audio_coding/codecs/isac/main/source/filterbanks.o \
 	modules/audio_coding/codecs/isac/main/source/intialize.o \
 	modules/audio_coding/codecs/isac/main/source/isac.o \
@@ -35,7 +34,8 @@ isac_c_C_OBJECTS = \
 	modules/audio_coding/codecs/isac/main/source/pitch_gain_tables.o \
 	modules/audio_coding/codecs/isac/main/source/pitch_lag_tables.o \
 	modules/audio_coding/codecs/isac/main/source/spectrum_ar_model_tables.o \
-	modules/audio_coding/codecs/isac/main/source/transform.o
+	modules/audio_coding/codecs/isac/main/source/transform.o \
+	modules/third_party/fft/fft.o
 
 CC_STATIC_LIBRARY(modules/audio_coding/libaudio_coding.pic.a): \
 	$(isac_c_C_OBJECTS) $(isac_vad_c_OBJECTS)

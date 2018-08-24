@@ -34,7 +34,6 @@
 #include "rtc_base/platform_file.h"
 #include "rtc_base/refcount.h"
 #include "rtc_base/scoped_ref_ptr.h"
-#include "typedefs.h"  // NOLINT(build/include)
 
 namespace webrtc {
 
@@ -54,11 +53,9 @@ class GainControl;
 class HighPassFilter;
 class LevelEstimator;
 class NoiseSuppression;
+class CustomAudioAnalyzer;
 class CustomProcessing;
 class VoiceDetection;
-
-// webrtc:8665, addedd temporarily to avoid breaking dependencies.
-typedef CustomProcessing PostProcessing;
 
 // Use to enable the extended filter mode in the AEC, along with robustness
 // measures around the reported system delays. It comes with a significant
@@ -125,10 +122,10 @@ struct ExperimentalAgc {
   explicit ExperimentalAgc(bool enabled) : enabled(enabled) {}
   ExperimentalAgc(bool enabled,
                   bool enabled_agc2_level_estimator,
-                  bool enabled_agc2_digital_adaptive)
+                  bool digital_adaptive_disabled)
       : enabled(enabled),
         enabled_agc2_level_estimator(enabled_agc2_level_estimator),
-        enabled_agc2_digital_adaptive(enabled_agc2_digital_adaptive) {}
+        digital_adaptive_disabled(digital_adaptive_disabled) {}
 
   ExperimentalAgc(bool enabled, int startup_min_volume)
       : enabled(enabled), startup_min_volume(startup_min_volume) {}
@@ -142,7 +139,7 @@ struct ExperimentalAgc {
   // Lowest microphone level that will be applied in response to clipping.
   int clipped_level_min = kClippedLevelMin;
   bool enabled_agc2_level_estimator = false;
-  bool enabled_agc2_digital_adaptive = false;
+  bool digital_adaptive_disabled = false;
 };
 
 // Use to enable experimental noise suppression. It can be set in the
@@ -151,17 +148,6 @@ struct ExperimentalNs {
   ExperimentalNs() : enabled(false) {}
   explicit ExperimentalNs(bool enabled) : enabled(enabled) {}
   static const ConfigOptionID identifier = ConfigOptionID::kExperimentalNs;
-  bool enabled;
-};
-
-// Use to enable intelligibility enhancer in audio processing.
-//
-// Note: If enabled and the reverse stream has more than one output channel,
-// the reverse stream will become an upmixed mono signal.
-struct Intelligibility {
-  Intelligibility() : enabled(false) {}
-  explicit Intelligibility(bool enabled) : enabled(enabled) {}
-  static const ConfigOptionID identifier = ConfigOptionID::kIntelligibility;
   bool enabled;
 };
 
@@ -253,6 +239,15 @@ class AudioProcessing : public rtc::RefCountInterface {
   // by changing the default values in the AudioProcessing::Config struct.
   // The config is applied by passing the struct to the ApplyConfig method.
   struct Config {
+    // TODO(bugs.webrtc.org/9535): Currently unused. Use this to determine AEC.
+    struct EchoCanceller {
+      bool enabled = false;
+      bool mobile_mode = false;
+      // Recommended not to use. Will be removed in the future.
+      // APM components are not fine-tuned for legacy suppression levels.
+      bool legacy_moderate_suppression_level = false;
+    } echo_canceller;
+
     struct ResidualEchoDetector {
       bool enabled = true;
     } residual_echo_detector;
@@ -268,12 +263,15 @@ class AudioProcessing : public rtc::RefCountInterface {
       float fixed_gain_factor = 1.f;
     } pre_amplifier;
 
-    // Enables the next generation AGC functionality. This feature
-    // replaces the standard methods of gain control in the previous
-    // AGC. This functionality is currently only partially
-    // implemented.
+    // Enables the next generation AGC functionality. This feature replaces the
+    // standard methods of gain control in the previous AGC. Enabling this
+    // submodule enables an adaptive digital AGC followed by a limiter. By
+    // setting |fixed_gain_db|, the limiter can be turned into a compressor that
+    // first applies a fixed gain. The adaptive digital AGC can be turned off by
+    // setting |adaptive_digital_mode=false|.
     struct GainController2 {
       bool enabled = false;
+      bool adaptive_digital_mode = true;
       float fixed_gain_db = 0.f;
     } gain_controller2;
 
@@ -667,6 +665,9 @@ class AudioProcessingBuilder {
   // The AudioProcessingBuilder takes ownership of the echo_detector.
   AudioProcessingBuilder& SetEchoDetector(
       rtc::scoped_refptr<EchoDetector> echo_detector);
+  // The AudioProcessingBuilder takes ownership of the capture_analyzer.
+  AudioProcessingBuilder& SetCaptureAnalyzer(
+      std::unique_ptr<CustomAudioAnalyzer> capture_analyzer);
   // This creates an APM instance using the previously set components. Calling
   // the Create function resets the AudioProcessingBuilder to its initial state.
   AudioProcessing* Create();
@@ -677,6 +678,7 @@ class AudioProcessingBuilder {
   std::unique_ptr<CustomProcessing> capture_post_processing_;
   std::unique_ptr<CustomProcessing> render_pre_processing_;
   rtc::scoped_refptr<EchoDetector> echo_detector_;
+  std::unique_ptr<CustomAudioAnalyzer> capture_analyzer_;
   RTC_DISALLOW_COPY_AND_ASSIGN(AudioProcessingBuilder);
 };
 
@@ -1008,6 +1010,19 @@ class NoiseSuppression {
 
  protected:
   virtual ~NoiseSuppression() {}
+};
+
+// Experimental interface for a custom analysis submodule.
+class CustomAudioAnalyzer {
+ public:
+  // (Re-) Initializes the submodule.
+  virtual void Initialize(int sample_rate_hz, int num_channels) = 0;
+  // Analyzes the given capture or render signal.
+  virtual void Analyze(const AudioBuffer* audio) = 0;
+  // Returns a string representation of the module state.
+  virtual std::string ToString() const = 0;
+
+  virtual ~CustomAudioAnalyzer() {}
 };
 
 // Interface for a custom processing submodule.

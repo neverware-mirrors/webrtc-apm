@@ -5,7 +5,7 @@
 include common.mk
 
 rtc_base_approved_generic_CXX_OBJECTS = \
-	rtc_base/base64.o \
+	rtc_base/third_party/base64/base64.o \
 	rtc_base/bitbuffer.o \
 	rtc_base/bitrateallocationstrategy.o \
 	rtc_base/bufferqueue.o \
