@@ -230,6 +230,8 @@ int convert_to_ap_config(struct apm_config *apm_config,
 		apm_config->gain_controller2_enabled;
 	ap_config->gain_controller2.fixed_gain_db =
 		apm_config->gain_controller2_fixed_gain_db;
+	ap_config->gain_controller2.adaptive_digital_mode =
+		apm_config->gain_controller2_adaptive_digital_mode;
 	return 0;
 }
 
