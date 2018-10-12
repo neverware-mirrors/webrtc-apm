@@ -173,9 +173,10 @@ size_t strcatn(CTYPE* buffer,
 // Some compilers (clang specifically) require vsprintfn be defined before
 // sprintfn.
 template <class CTYPE>
+__attribute__ ((__format__ (__printf__, 3, 0)))
 size_t vsprintfn(CTYPE* buffer,
                  size_t buflen,
-                 const CTYPE* format,
+                 const char* format,
                  va_list args) {
   int len = vsnprintf(buffer, buflen, format, args);
   if ((len < 0) || (static_cast<size_t>(len) >= buflen)) {
@@ -186,9 +187,8 @@ size_t vsprintfn(CTYPE* buffer,
 }
 
 template <class CTYPE>
-size_t sprintfn(CTYPE* buffer, size_t buflen, const CTYPE* format, ...);
-template <class CTYPE>
-size_t sprintfn(CTYPE* buffer, size_t buflen, const CTYPE* format, ...) {
+__attribute__ ((__format__ (__printf__, 3, 0)))
+size_t sprintfn(CTYPE* buffer, size_t buflen, const char* format, ...) {
   va_list args;
   va_start(args, format);
   size_t len = vsprintfn(buffer, buflen, format, args);
