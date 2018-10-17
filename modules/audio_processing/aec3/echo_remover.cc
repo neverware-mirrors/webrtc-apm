@@ -48,6 +48,10 @@ bool UseSmoothSignalTransitions() {
       "WebRTC-Aec3SmoothSignalTransitionsKillSwitch");
 }
 
+bool EnableBoundedNearend() {
+  return !field_trial::IsEnabled("WebRTC-Aec3BoundedNearendKillSwitch");
+}
+
 void LinearEchoPower(const FftData& E,
                      const FftData& Y,
                      std::array<float, kFftLengthBy2Plus1>* S2) {
@@ -62,15 +66,15 @@ void SignalTransition(rtc::ArrayView<const float> from,
                       rtc::ArrayView<const float> to,
                       rtc::ArrayView<float> out) {
   constexpr size_t kTransitionSize = 30;
-  constexpr float kOneByTransitionSize = 1.f / kTransitionSize;
+  constexpr float kOneByTransitionSizePlusOne = 1.f / (kTransitionSize + 1);
 
   RTC_DCHECK_EQ(from.size(), to.size());
   RTC_DCHECK_EQ(from.size(), out.size());
   RTC_DCHECK_LE(kTransitionSize, out.size());
 
   for (size_t k = 0; k < kTransitionSize; ++k) {
-    out[k] = k * kOneByTransitionSize * to[k];
-    out[k] += (kTransitionSize - k) * kOneByTransitionSize * to[k];
+    float a = (k + 1) * kOneByTransitionSizePlusOne;
+    out[k] = a * to[k] + (1.f - a) * from[k];
   }
 
   std::copy(to.begin() + kTransitionSize, to.end(),
@@ -132,6 +136,7 @@ class EchoRemoverImpl final : public EchoRemover {
   const int sample_rate_hz_;
   const bool use_shadow_filter_output_;
   const bool use_smooth_signal_transitions_;
+  const bool enable_bounded_nearend_;
   Subtractor subtractor_;
   SuppressionGain suppression_gain_;
   ComfortNoiseGenerator cng_;
@@ -166,10 +171,11 @@ EchoRemoverImpl::EchoRemoverImpl(const EchoCanceller3Config& config,
           UseShadowFilterOutput() &&
           config_.filter.enable_shadow_filter_output_usage),
       use_smooth_signal_transitions_(UseSmoothSignalTransitions()),
+      enable_bounded_nearend_(EnableBoundedNearend()),
       subtractor_(config, data_dumper_.get(), optimization_),
       suppression_gain_(config_, optimization_, sample_rate_hz),
       cng_(optimization_),
-      suppression_filter_(sample_rate_hz_),
+      suppression_filter_(optimization_, sample_rate_hz_),
       render_signal_analyzer_(config_),
       residual_echo_estimator_(config_),
       aec_state_(config_) {
@@ -185,7 +191,7 @@ void EchoRemoverImpl::GetMetrics(EchoControl::Metrics* metrics) const {
   // Echo return loss (ERL) is inverted to go from gain to attenuation.
   metrics->echo_return_loss = -10.0 * log10(aec_state_.ErlTimeDomain());
   metrics->echo_return_loss_enhancement =
-      Log2TodB(aec_state_.ErleTimeDomainLog2());
+      Log2TodB(aec_state_.FullBandErleLog2());
 }
 
 void EchoRemoverImpl::ProcessCapture(
@@ -311,9 +317,18 @@ void EchoRemoverImpl::ProcessCapture(
   // Compute and apply the suppression gain.
   const auto& echo_spectrum =
       aec_state_.UsableLinearEstimate() ? S2_linear : R2;
-  suppression_gain_.GetGain(E2, echo_spectrum, R2, cng_.NoiseSpectrum(), E, Y,
-                            render_signal_analyzer_, aec_state_, x,
-                            &high_bands_gain, &G);
+
+  std::array<float, kFftLengthBy2Plus1> E2_bounded;
+  if (enable_bounded_nearend_) {
+    std::transform(E2.begin(), E2.end(), Y2.begin(), E2_bounded.begin(),
+                   [](float a, float b) { return std::min(a, b); });
+  } else {
+    std::copy(E2.begin(), E2.end(), E2_bounded.begin());
+  }
+
+  suppression_gain_.GetGain(E2, E2_bounded, echo_spectrum, R2,
+                            cng_.NoiseSpectrum(), E, Y, render_signal_analyzer_,
+                            aec_state_, x, &high_bands_gain, &G);
 
   suppression_filter_.ApplyGain(comfort_noise, high_band_comfort_noise, G,
                                 high_bands_gain, Y_fft, y);

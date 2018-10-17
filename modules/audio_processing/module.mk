@@ -14,9 +14,7 @@ module_audio_processing_CXX_OBJECTS = \
 	modules/audio_processing/audio_buffer.o \
 	modules/audio_processing/audio_processing_impl.o \
 	modules/audio_processing/echo_cancellation_impl.o \
-	modules/audio_processing/echo_cancellation_proxy.o \
 	modules/audio_processing/echo_control_mobile_impl.o \
-	modules/audio_processing/echo_control_mobile_proxy.o \
 	modules/audio_processing/echo_detector/circular_buffer.o \
 	modules/audio_processing/echo_detector/mean_variance_estimator.o \
 	modules/audio_processing/echo_detector/moving_max.o \
@@ -95,6 +93,7 @@ aec3_CXX_OBJECTS = \
 	modules/audio_processing/aec3/block_delay_buffer.o \
 	modules/audio_processing/aec3/block_framer.o \
 	modules/audio_processing/aec3/block_processor.o \
+	modules/audio_processing/aec3/block_processor2.o \
 	modules/audio_processing/aec3/block_processor_metrics.o \
 	modules/audio_processing/aec3/cascaded_biquad_filter.o \
 	modules/audio_processing/aec3/comfort_noise_generator.o \
@@ -111,6 +110,7 @@ aec3_CXX_OBJECTS = \
 	modules/audio_processing/aec3/fft_buffer.o \
 	modules/audio_processing/aec3/filter_analyzer.o \
 	modules/audio_processing/aec3/frame_blocker.o \
+	modules/audio_processing/aec3/fullband_erle_estimator.o \
 	modules/audio_processing/aec3/main_filter_update_gain.o \
 	modules/audio_processing/aec3/matched_filter.o \
 	modules/audio_processing/aec3/matched_filter_lag_aggregator.o \
@@ -118,7 +118,9 @@ aec3_CXX_OBJECTS = \
 	modules/audio_processing/aec3/moving_average.o \
 	modules/audio_processing/aec3/render_buffer.o \
 	modules/audio_processing/aec3/render_delay_buffer.o \
+	modules/audio_processing/aec3/render_delay_buffer2.o \
 	modules/audio_processing/aec3/render_delay_controller.o \
+	modules/audio_processing/aec3/render_delay_controller2.o \
 	modules/audio_processing/aec3/render_delay_controller_metrics.o \
 	modules/audio_processing/aec3/render_signal_analyzer.o \
 	modules/audio_processing/aec3/residual_echo_estimator.o \
@@ -130,6 +132,7 @@ aec3_CXX_OBJECTS = \
 	modules/audio_processing/aec3/shadow_filter_update_gain.o \
 	modules/audio_processing/aec3/skew_estimator.o \
 	modules/audio_processing/aec3/stationarity_estimator.o \
+	modules/audio_processing/aec3/subband_erle_estimator.o \
 	modules/audio_processing/aec3/subtractor.o \
 	modules/audio_processing/aec3/subtractor_output.o \
 	modules/audio_processing/aec3/subtractor_output_analyzer.o \
@@ -149,6 +152,7 @@ agc2_CXX_OBJECTS = \
 	modules/audio_processing/agc2/adaptive_digital_gain_applier.o \
 	modules/audio_processing/agc2/adaptive_mode_level_estimator.o \
 	modules/audio_processing/agc2/adaptive_mode_level_estimator_agc.o \
+	modules/audio_processing/agc2/agc2_common.o \
 	modules/audio_processing/agc2/biquad_filter.o \
 	modules/audio_processing/agc2/compute_interpolated_gain_curve.o \
 	modules/audio_processing/agc2/down_sampler.o \

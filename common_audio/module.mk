@@ -6,11 +6,8 @@ include common.mk
 
 common_audio_CXX_OBJECTS = \
 	common_audio/audio_converter.o \
-	common_audio/audio_ring_buffer.o \
 	common_audio/audio_util.o \
-	common_audio/blocker.o \
 	common_audio/channel_buffer.o \
-	common_audio/lapped_transform.o \
 	common_audio/real_fourier.o \
 	common_audio/real_fourier_ooura.o \
 	common_audio/smoothing_filter.o \

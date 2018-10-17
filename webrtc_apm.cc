@@ -11,6 +11,8 @@
 #include "rtc_base/task_queue.h"
 
 extern "C" {
+#include <errno.h>
+
 #include "webrtc_apm.h"
 
 int convert_to_aec3_config(
@@ -432,14 +434,6 @@ int webrtc_apm_aec_dump(webrtc_apm ptr, void** wq_ptr, int start, FILE *handle)
 		}
 	}
 	return 0;
-}
-
-int webrtc_apm_has_echo(webrtc_apm ptr)
-{
-	webrtc::AudioProcessing *apm;
-
-	apm = reinterpret_cast<webrtc::AudioProcessing *>(ptr);
-	return apm->echo_cancellation()->stream_has_echo();
 }
 
 } // extern "C"

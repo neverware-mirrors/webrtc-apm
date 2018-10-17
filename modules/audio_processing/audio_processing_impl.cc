@@ -24,13 +24,18 @@
 #include "modules/audio_processing/audio_buffer.h"
 #include "modules/audio_processing/common.h"
 #include "modules/audio_processing/echo_cancellation_impl.h"
-#include "modules/audio_processing/echo_cancellation_proxy.h"
 #include "modules/audio_processing/echo_control_mobile_impl.h"
-#include "modules/audio_processing/echo_control_mobile_proxy.h"
 #include "modules/audio_processing/gain_control_for_experimental_agc.h"
 #include "modules/audio_processing/gain_control_impl.h"
 #include "modules/audio_processing/gain_controller2.h"
+#include "modules/audio_processing/level_estimator_impl.h"
 #include "modules/audio_processing/logging/apm_data_dumper.h"
+#include "modules/audio_processing/low_cut_filter.h"
+#include "modules/audio_processing/noise_suppression_impl.h"
+#include "modules/audio_processing/residual_echo_detector.h"
+#include "modules/audio_processing/transient/transient_suppressor.h"
+#include "modules/audio_processing/voice_detection_impl.h"
+#include "rtc_base/atomicops.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/platform_file.h"
@@ -38,13 +43,6 @@
 #include "rtc_base/system/arch.h"
 #include "rtc_base/timeutils.h"
 #include "rtc_base/trace_event.h"
-#include "modules/audio_processing/level_estimator_impl.h"
-#include "modules/audio_processing/low_cut_filter.h"
-#include "modules/audio_processing/noise_suppression_impl.h"
-#include "modules/audio_processing/residual_echo_detector.h"
-#include "modules/audio_processing/transient/transient_suppressor.h"
-#include "modules/audio_processing/voice_detection_impl.h"
-#include "rtc_base/atomicops.h"
 #include "system_wrappers/include/metrics.h"
 
 #define RETURN_ON_ERR(expr) \
@@ -154,7 +152,7 @@ AudioProcessingImpl::ApmSubmoduleStates::ApmSubmoduleStates(
       capture_analyzer_enabled_(capture_analyzer_enabled) {}
 
 bool AudioProcessingImpl::ApmSubmoduleStates::Update(
-    bool low_cut_filter_enabled,
+    bool high_pass_filter_enabled,
     bool echo_canceller_enabled,
     bool mobile_echo_controller_enabled,
     bool residual_echo_detector_enabled,
@@ -167,7 +165,7 @@ bool AudioProcessingImpl::ApmSubmoduleStates::Update(
     bool level_estimator_enabled,
     bool transient_suppressor_enabled) {
   bool changed = false;
-  changed |= (low_cut_filter_enabled != low_cut_filter_enabled_);
+  changed |= (high_pass_filter_enabled != high_pass_filter_enabled_);
   changed |= (echo_canceller_enabled != echo_canceller_enabled_);
   changed |=
       (mobile_echo_controller_enabled != mobile_echo_controller_enabled_);
@@ -185,7 +183,7 @@ bool AudioProcessingImpl::ApmSubmoduleStates::Update(
       (voice_activity_detector_enabled != voice_activity_detector_enabled_);
   changed |= (transient_suppressor_enabled != transient_suppressor_enabled_);
   if (changed) {
-    low_cut_filter_enabled_ = low_cut_filter_enabled;
+    high_pass_filter_enabled_ = high_pass_filter_enabled;
     echo_canceller_enabled_ = echo_canceller_enabled;
     mobile_echo_controller_enabled_ = mobile_echo_controller_enabled;
     residual_echo_detector_enabled_ = residual_echo_detector_enabled;
@@ -211,7 +209,7 @@ bool AudioProcessingImpl::ApmSubmoduleStates::CaptureMultiBandSubModulesActive()
 
 bool AudioProcessingImpl::ApmSubmoduleStates::CaptureMultiBandProcessingActive()
     const {
-  return low_cut_filter_enabled_ || echo_canceller_enabled_ ||
+  return high_pass_filter_enabled_ || echo_canceller_enabled_ ||
          mobile_echo_controller_enabled_ || noise_suppressor_enabled_ ||
          adaptive_gain_controller_enabled_ || echo_controller_enabled_;
 }
@@ -243,13 +241,16 @@ bool AudioProcessingImpl::ApmSubmoduleStates::RenderMultiBandProcessingActive()
   return false;
 }
 
+bool AudioProcessingImpl::ApmSubmoduleStates::LowCutFilteringRequired() const {
+  return high_pass_filter_enabled_ || echo_canceller_enabled_ ||
+         mobile_echo_controller_enabled_ || noise_suppressor_enabled_;
+}
+
 struct AudioProcessingImpl::ApmPublicSubmodules {
   ApmPublicSubmodules() {}
   // Accessed externally of APM without any lock acquired.
   std::unique_ptr<EchoCancellationImpl> echo_cancellation;
   std::unique_ptr<EchoControlMobileImpl> echo_control_mobile;
-  std::unique_ptr<EchoCancellationProxy> echo_cancellation_proxy;
-  std::unique_ptr<EchoControlMobileProxy> echo_control_mobile_proxy;
   std::unique_ptr<GainControlImpl> gain_control;
   std::unique_ptr<LevelEstimatorImpl> level_estimator;
   std::unique_ptr<NoiseSuppressionImpl> noise_suppression;
@@ -365,13 +366,15 @@ AudioProcessingImpl::AudioProcessingImpl(
       constants_(config.Get<ExperimentalAgc>().startup_min_volume,
                  config.Get<ExperimentalAgc>().clipped_level_min,
 #if defined(WEBRTC_ANDROID) || defined(WEBRTC_IOS)
-                 false,
-                 false,
-                 false),
+                 /* enabled= */ false,
+                 /* enabled_agc2_level_estimator= */ false,
+                 /* digital_adaptive_disabled= */ false,
+                 /* analyze_before_aec= */ false),
 #else
                  config.Get<ExperimentalAgc>().enabled,
                  config.Get<ExperimentalAgc>().enabled_agc2_level_estimator,
-                 config.Get<ExperimentalAgc>().digital_adaptive_disabled),
+                 config.Get<ExperimentalAgc>().digital_adaptive_disabled,
+                 config.Get<ExperimentalAgc>().analyze_before_aec),
 #endif
 #if defined(WEBRTC_ANDROID) || defined(WEBRTC_IOS)
       capture_(false),
@@ -391,11 +394,6 @@ AudioProcessingImpl::AudioProcessingImpl(
         new EchoCancellationImpl(&crit_render_, &crit_capture_));
     public_submodules_->echo_control_mobile.reset(
         new EchoControlMobileImpl(&crit_render_, &crit_capture_));
-    public_submodules_->echo_cancellation_proxy.reset(new EchoCancellationProxy(
-        this, public_submodules_->echo_cancellation.get()));
-    public_submodules_->echo_control_mobile_proxy.reset(
-        new EchoControlMobileProxy(
-            this, public_submodules_->echo_control_mobile.get()));
     public_submodules_->gain_control.reset(
         new GainControlImpl(&crit_render_, &crit_capture_));
     public_submodules_->level_estimator.reset(
@@ -670,12 +668,15 @@ void AudioProcessingImpl::ApplyConfig(const AudioProcessing::Config& config) {
   rtc::CritScope cs_render(&crit_render_);
   rtc::CritScope cs_capture(&crit_capture_);
 
-  static_cast<EchoCancellation*>(public_submodules_->echo_cancellation.get())
-      ->Enable(config_.echo_canceller.enabled &&
-               !config_.echo_canceller.mobile_mode);
-  static_cast<EchoControlMobile*>(public_submodules_->echo_control_mobile.get())
-      ->Enable(config_.echo_canceller.enabled &&
-               config_.echo_canceller.mobile_mode);
+  public_submodules_->echo_cancellation->Enable(
+      config_.echo_canceller.enabled && !config_.echo_canceller.mobile_mode);
+  public_submodules_->echo_control_mobile->Enable(
+      config_.echo_canceller.enabled && config_.echo_canceller.mobile_mode);
+
+  public_submodules_->echo_cancellation->set_suppression_level(
+      config.echo_canceller.legacy_moderate_suppression_level
+          ? EchoCancellationImpl::SuppressionLevel::kModerateSuppression
+          : EchoCancellationImpl::SuppressionLevel::kHighSuppression);
 
   InitializeLowCutFilter();
 
@@ -876,6 +877,9 @@ int AudioProcessingImpl::ProcessStream(const float* const* src,
 void AudioProcessingImpl::HandleCaptureRuntimeSettings() {
   RuntimeSetting setting;
   while (capture_runtime_settings_.Remove(&setting)) {
+    if (aec_dump_) {
+      aec_dump_->WriteRuntimeSetting(setting);
+    }
     switch (setting.type()) {
       case RuntimeSetting::Type::kCapturePreGain:
         if (config_.pre_amplifier.enabled) {
@@ -898,6 +902,9 @@ void AudioProcessingImpl::HandleCaptureRuntimeSettings() {
 void AudioProcessingImpl::HandleRenderRuntimeSettings() {
   RuntimeSetting setting;
   while (render_runtime_settings_.Remove(&setting)) {
+    if (aec_dump_) {
+      aec_dump_->WriteRuntimeSetting(setting);
+    }
     switch (setting.type()) {
       case RuntimeSetting::Type::kCustomRenderProcessingRuntimeSetting:
         if (private_submodules_->render_pre_processor) {
@@ -1207,6 +1214,15 @@ int AudioProcessingImpl::ProcessCaptureStreamLocked() {
         capture_.prev_analog_mic_level != -1;
     capture_.prev_analog_mic_level = analog_mic_level;
 
+    // Detect and flag any change in the pre-amplifier gain.
+    if (private_submodules_->pre_amplifier) {
+      float pre_amp_gain = private_submodules_->pre_amplifier->GetGainFactor();
+      capture_.echo_path_gain_change =
+          capture_.echo_path_gain_change ||
+          (capture_.prev_pre_amp_gain != pre_amp_gain &&
+           capture_.prev_pre_amp_gain >= 0.f);
+      capture_.prev_pre_amp_gain = pre_amp_gain;
+    }
     private_submodules_->echo_controller->AnalyzeCapture(capture_buffer);
   }
 
@@ -1215,6 +1231,13 @@ int AudioProcessingImpl::ProcessCaptureStreamLocked() {
     private_submodules_->agc_manager->AnalyzePreProcess(
         capture_buffer->channels()[0], capture_buffer->num_channels(),
         capture_nonlocked_.capture_processing_format.num_frames());
+
+    if (constants_.use_experimental_agc_process_before_aec) {
+      private_submodules_->agc_manager->Process(
+          capture_buffer->channels()[0],
+          capture_nonlocked_.capture_processing_format.num_frames(),
+          capture_nonlocked_.capture_processing_format.sample_rate_hz());
+    }
   }
 
   if (submodule_states_.CaptureMultiBandSubModulesActive() &&
@@ -1284,13 +1307,15 @@ int AudioProcessingImpl::ProcessCaptureStreamLocked() {
   public_submodules_->voice_detection->ProcessCaptureAudio(capture_buffer);
 
   if (constants_.use_experimental_agc &&
-      public_submodules_->gain_control->is_enabled()) {
+      public_submodules_->gain_control->is_enabled() &&
+      !constants_.use_experimental_agc_process_before_aec) {
     private_submodules_->agc_manager->Process(
         capture_buffer->split_bands_const(0)[kBand0To8kHz],
         capture_buffer->num_frames_per_band(), capture_nonlocked_.split_rate);
   }
   RETURN_ON_ERR(public_submodules_->gain_control->ProcessCaptureAudio(
-      capture_buffer, echo_cancellation()->stream_has_echo()));
+      capture_buffer,
+      public_submodules_->echo_cancellation->stream_has_echo()));
 
   if (submodule_states_.CaptureMultiBandProcessingActive() &&
       SampleRateSupportsMultiBand(
@@ -1616,7 +1641,7 @@ AudioProcessingStats AudioProcessing::GetStatistics(
 AudioProcessing::AudioProcessingStatistics AudioProcessingImpl::GetStatistics()
     const {
   AudioProcessingStatistics stats;
-  EchoCancellation::Metrics metrics;
+  EchoCancellationImpl::Metrics metrics;
   if (private_submodules_->echo_controller) {
     rtc::CritScope cs_capture(&crit_capture_);
     auto ec_metrics = private_submodules_->echo_controller->GetMetrics();
@@ -1652,7 +1677,7 @@ AudioProcessingStats AudioProcessingImpl::GetStatistics(
     bool has_remote_tracks) const {
   AudioProcessingStats stats;
   if (has_remote_tracks) {
-    EchoCancellation::Metrics metrics;
+    EchoCancellationImpl::Metrics metrics;
     if (private_submodules_->echo_controller) {
       rtc::CritScope cs_capture(&crit_capture_);
       auto ec_metrics = private_submodules_->echo_controller->GetMetrics();
@@ -1697,14 +1722,6 @@ AudioProcessingStats AudioProcessingImpl::GetStatistics(
     }
   }
   return stats;
-}
-
-EchoCancellation* AudioProcessingImpl::echo_cancellation() const {
-  return public_submodules_->echo_cancellation_proxy.get();
-}
-
-EchoControlMobile* AudioProcessingImpl::echo_control_mobile() const {
-  return public_submodules_->echo_control_mobile_proxy.get();
 }
 
 GainControl* AudioProcessingImpl::gain_control() const {
@@ -1759,7 +1776,6 @@ bool AudioProcessingImpl::UpdateActiveSubmoduleStates() {
       capture_.transient_suppressor_enabled);
 }
 
-
 void AudioProcessingImpl::InitializeTransient() {
   if (capture_.transient_suppressor_enabled) {
     if (!public_submodules_->transient_suppressor.get()) {
@@ -1772,7 +1788,7 @@ void AudioProcessingImpl::InitializeTransient() {
 }
 
 void AudioProcessingImpl::InitializeLowCutFilter() {
-  if (config_.high_pass_filter.enabled) {
+  if (submodule_states_.LowCutFilteringRequired()) {
     private_submodules_->low_cut_filter.reset(
         new LowCutFilter(num_proc_channels(), proc_sample_rate_hz()));
   } else {
@@ -1836,15 +1852,15 @@ void AudioProcessingImpl::InitializePreProcessor() {
 void AudioProcessingImpl::MaybeUpdateHistograms() {
   static const int kMinDiffDelayMs = 60;
 
-  if (echo_cancellation()->is_enabled()) {
+  if (public_submodules_->echo_cancellation->is_enabled()) {
     // Activate delay_jumps_ counters if we know echo_cancellation is running.
     // If a stream has echo we know that the echo_cancellation is in process.
     if (capture_.stream_delay_jumps == -1 &&
-        echo_cancellation()->stream_has_echo()) {
+        public_submodules_->echo_cancellation->stream_has_echo()) {
       capture_.stream_delay_jumps = 0;
     }
     if (capture_.aec_system_delay_jumps == -1 &&
-        echo_cancellation()->stream_has_echo()) {
+        public_submodules_->echo_cancellation->stream_has_echo()) {
       capture_.aec_system_delay_jumps = 0;
     }
 
@@ -2036,7 +2052,8 @@ AudioProcessingImpl::ApmCaptureState::ApmCaptureState(
       capture_processing_format(kSampleRate16kHz),
       split_rate(kSampleRate16kHz),
       echo_path_gain_change(false),
-      prev_analog_mic_level(-1) {}
+      prev_analog_mic_level(-1),
+      prev_pre_amp_gain(-1.f) {}
 
 AudioProcessingImpl::ApmCaptureState::~ApmCaptureState() = default;
 

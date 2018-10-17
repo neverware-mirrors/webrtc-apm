@@ -9,14 +9,13 @@ system_wrappers_source_CXX_OBJECTS = \
 	system_wrappers/source/cpu_features.o \
 	system_wrappers/source/cpu_info.o \
 	system_wrappers/source/event.o \
-	system_wrappers/source/event_timer_posix.o \
-	system_wrappers/source/field_trial_default.o \
+	system_wrappers/source/field_trial.o \
 	system_wrappers/source/rtp_to_ntp_estimator.o \
 	system_wrappers/source/sleep.o
 
 CXX_STATIC_LIBRARY(system_wrappers/source/libsystem_wrappers.pic.a): \
 	$(system_wrappers_source_CXX_OBJECTS) \
-	system_wrappers/source/metrics_default.o
+	system_wrappers/source/metrics.o
 
 system_wrappers/source/libsystem_wrappers: \
 	CXX_STATIC_LIBRARY(system_wrappers/source/libsystem_wrappers.pic.a)

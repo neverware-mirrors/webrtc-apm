@@ -24,7 +24,6 @@
 #include "api/proxy.h"
 #include "api/rtcerror.h"
 #include "api/rtpparameters.h"
-#include "rtc_base/deprecation.h"
 #include "rtc_base/refcount.h"
 #include "rtc_base/scoped_ref_ptr.h"
 
@@ -54,6 +53,12 @@ class RtpSenderInterface : public rtc::RefCountInterface {
   // These are signalled in the SDP so that the remote side can associate
   // tracks.
   virtual std::vector<std::string> stream_ids() const = 0;
+
+  // Returns the list of encoding parameters that will be applied when the SDP
+  // local description is set. These initial encoding parameters can be set by
+  // PeerConnection::AddTransceiver, and later updated with Get/SetParameters.
+  // TODO(orphis): Make it pure virtual once Chrome has updated
+  virtual std::vector<RtpEncodingParameters> init_send_encodings() const;
 
   virtual RtpParameters GetParameters() = 0;
   // Note that only a subset of the parameters can currently be changed. See
@@ -90,6 +95,7 @@ PROXY_CONSTMETHOD0(uint32_t, ssrc)
 PROXY_CONSTMETHOD0(cricket::MediaType, media_type)
 PROXY_CONSTMETHOD0(std::string, id)
 PROXY_CONSTMETHOD0(std::vector<std::string>, stream_ids)
+PROXY_CONSTMETHOD0(std::vector<RtpEncodingParameters>, init_send_encodings)
 PROXY_METHOD0(RtpParameters, GetParameters);
 PROXY_METHOD1(RTCError, SetParameters, const RtpParameters&)
 PROXY_CONSTMETHOD0(rtc::scoped_refptr<DtmfSenderInterface>, GetDtmfSender);

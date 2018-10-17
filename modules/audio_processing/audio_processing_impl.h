@@ -117,8 +117,6 @@ class AudioProcessingImpl : public AudioProcessing {
   // would offer no protection (the submodules are
   // created only once in a single-treaded manner
   // during APM creation).
-  EchoCancellation* echo_cancellation() const override;
-  EchoControlMobile* echo_control_mobile() const override;
   GainControl* gain_control() const override;
   // TODO(peah): Deprecate this API call.
   HighPassFilter* high_pass_filter() const override;
@@ -178,7 +176,7 @@ class AudioProcessingImpl : public AudioProcessing {
                        bool render_pre_processor_enabled,
                        bool capture_analyzer_enabled);
     // Updates the submodule state and returns true if it has changed.
-    bool Update(bool low_cut_filter_enabled,
+    bool Update(bool high_pass_filter_enabled,
                 bool echo_canceller_enabled,
                 bool mobile_echo_controller_enabled,
                 bool residual_echo_detector_enabled,
@@ -197,12 +195,13 @@ class AudioProcessingImpl : public AudioProcessing {
     bool RenderMultiBandSubModulesActive() const;
     bool RenderFullBandProcessingActive() const;
     bool RenderMultiBandProcessingActive() const;
+    bool LowCutFilteringRequired() const;
 
    private:
     const bool capture_post_processor_enabled_ = false;
     const bool render_pre_processor_enabled_ = false;
     const bool capture_analyzer_enabled_ = false;
-    bool low_cut_filter_enabled_ = false;
+    bool high_pass_filter_enabled_ = false;
     bool echo_canceller_enabled_ = false;
     bool mobile_echo_controller_enabled_ = false;
     bool residual_echo_detector_enabled_ = false;
@@ -355,7 +354,8 @@ class AudioProcessingImpl : public AudioProcessing {
                  int agc_clipped_level_min,
                  bool use_experimental_agc,
                  bool use_experimental_agc_agc2_level_estimation,
-                 bool use_experimental_agc_agc2_digital_adaptive)
+                 bool use_experimental_agc_agc2_digital_adaptive,
+                 bool use_experimental_agc_process_before_aec)
         :  // Format of processing streams at input/output call sites.
           agc_startup_min_volume(agc_startup_min_volume),
           agc_clipped_level_min(agc_clipped_level_min),
@@ -363,12 +363,15 @@ class AudioProcessingImpl : public AudioProcessing {
           use_experimental_agc_agc2_level_estimation(
               use_experimental_agc_agc2_level_estimation),
           use_experimental_agc_agc2_digital_adaptive(
-              use_experimental_agc_agc2_digital_adaptive) {}
+              use_experimental_agc_agc2_digital_adaptive),
+          use_experimental_agc_process_before_aec(
+              use_experimental_agc_process_before_aec) {}
     int agc_startup_min_volume;
     int agc_clipped_level_min;
     bool use_experimental_agc;
     bool use_experimental_agc_agc2_level_estimation;
     bool use_experimental_agc_agc2_digital_adaptive;
+    bool use_experimental_agc_process_before_aec;
 
   } constants_;
 
@@ -392,6 +395,7 @@ class AudioProcessingImpl : public AudioProcessing {
     int split_rate;
     bool echo_path_gain_change;
     int prev_analog_mic_level;
+    float prev_pre_amp_gain;
   } capture_ RTC_GUARDED_BY(crit_capture_);
 
   struct ApmCaptureNonLockedState {

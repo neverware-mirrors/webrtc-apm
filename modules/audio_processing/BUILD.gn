@@ -37,12 +37,8 @@ rtc_static_library("audio_processing") {
     "common.h",
     "echo_cancellation_impl.cc",
     "echo_cancellation_impl.h",
-    "echo_cancellation_proxy.cc",
-    "echo_cancellation_proxy.h",
     "echo_control_mobile_impl.cc",
     "echo_control_mobile_impl.h",
-    "echo_control_mobile_proxy.cc",
-    "echo_control_mobile_proxy.h",
     "echo_detector/circular_buffer.cc",
     "echo_detector/circular_buffer.h",
     "echo_detector/mean_variance_estimator.cc",
@@ -119,9 +115,10 @@ rtc_static_library("audio_processing") {
     "../../rtc_base:safe_minmax",
     "../../rtc_base:sanitizer",
     "../../rtc_base/system:arch",
+    "../../rtc_base/system:rtc_export",
     "../../system_wrappers:cpu_features_api",
-    "../../system_wrappers:field_trial_api",
-    "../../system_wrappers:metrics_api",
+    "../../system_wrappers:field_trial",
+    "../../system_wrappers:metrics",
     "aec:aec",
     "aec:aec_core",
     "aecm:aecm_core",
@@ -166,6 +163,7 @@ rtc_source_set("audio_processing_statistics") {
     "include/audio_processing_statistics.h",
   ]
   deps = [
+    "../../rtc_base/system:rtc_export",
     "//third_party/abseil-cpp/absl/types:optional",
   ]
 }
@@ -345,6 +343,7 @@ if (rtc_include_tests) {
       "audio_frame_view_unittest.cc",
       "config_unittest.cc",
       "echo_cancellation_impl_unittest.cc",
+      "echo_control_mobile_unittest.cc",
       "gain_controller2_unittest.cc",
       "splitting_filter_unittest.cc",
       "test/fake_recording_device_unittest.cc",
@@ -419,6 +418,7 @@ if (rtc_include_tests) {
         ":audioproc_protobuf_utils",
         ":audioproc_test_utils",
         ":audioproc_unittest_proto",
+        ":runtime_settings_protobuf_utils",
         "../../api/audio:audio_frame_api",
         "../../rtc_base:rtc_base_tests_utils",
         "../../rtc_base:rtc_task_queue",
@@ -430,7 +430,7 @@ if (rtc_include_tests) {
         "audio_processing_impl_unittest.cc",
         "audio_processing_unittest.cc",
         "echo_cancellation_bit_exact_unittest.cc",
-        "echo_control_mobile_unittest.cc",
+        "echo_control_mobile_bit_exact_unittest.cc",
         "echo_detector/circular_buffer_unittest.cc",
         "echo_detector/mean_variance_estimator_unittest.cc",
         "echo_detector/moving_max_unittest.cc",
@@ -531,6 +531,8 @@ if (rtc_include_tests) {
         ":audioproc_debug_proto",
         ":audioproc_protobuf_utils",
         ":audioproc_test_utils",
+        ":runtime_settings_protobuf_utils",
+        "../../api/audio:aec3_config_json",
         "../../api/audio:aec3_factory",
         "../../common_audio:common_audio",
         "../../rtc_base:checks",
@@ -540,7 +542,6 @@ if (rtc_include_tests) {
         "../../rtc_base:rtc_task_queue",
         "../../rtc_base:stringutils",
         "../../system_wrappers",
-        "../../system_wrappers:system_wrappers_default",
         "../../test:test_support",
         "aec_dump",
         "aec_dump:aec_dump_impl",
@@ -610,7 +611,6 @@ if (rtc_include_tests) {
       "../../rtc_base:rtc_base_approved",
       "../../rtc_base/system:file_wrapper",
       "../../system_wrappers",
-      "../../system_wrappers:metrics_default",
       "../../test:fileutils",
       "../../test:test_support",
       "agc:level_estimation",
@@ -630,7 +630,6 @@ if (rtc_include_tests) {
       "../..:webrtc_common",
       "../../rtc_base/system:file_wrapper",
       "../../system_wrappers",
-      "../../system_wrappers:metrics_default",
     ]
   }
 
@@ -651,9 +650,25 @@ if (rtc_include_tests) {
       deps = [
         ":audioproc_debug_proto",
         "../..:webrtc_common",
+        "../../rtc_base:checks",
         "../../rtc_base:protobuf_utils",
         "../../rtc_base:rtc_base_approved",
         "../../rtc_base/system:arch",
+      ]
+    }
+
+    rtc_static_library("runtime_settings_protobuf_utils") {
+      testonly = true
+      sources = [
+        "test/runtime_setting_util.cc",
+        "test/runtime_setting_util.h",
+      ]
+
+      deps = [
+        ":audio_processing",
+        ":audioproc_debug_proto",
+        ":audioproc_protobuf_utils",
+        "../../rtc_base:checks",
       ]
     }
   }

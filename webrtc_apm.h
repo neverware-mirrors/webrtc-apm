@@ -283,9 +283,6 @@ WEBRTC_APM_API int webrtc_apm_process_stream_f(webrtc_apm ptr,
  */
 WEBRTC_APM_API int webrtc_apm_set_stream_delay(webrtc_apm ptr, int delay_ms);
 
-/* Checks if apm detects echo in forward stream. */
-WEBRTC_APM_API int webrtc_apm_has_echo(webrtc_apm ptr);
-
 /* Dump aec debug info to a file.
  * Args:
  *    ptr - Pointer to the webrtc_apm instance.
