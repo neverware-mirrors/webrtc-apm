@@ -24,6 +24,9 @@
 #define APM_GAIN_CONTROLLER2_FIXED_GAIN_DB_VALUE 0.f
 #define APM_GAIN_CONTROLLER2_ADAPTIVE_DIGITAL_MODE "apm:gain_controller2_adaptive_digital_mode"
 #define APM_GAIN_CONTROLLER2_ADAPTIVE_DIGITAL_MODE_VALUE 1
+#define APM_GAIN_CONTROLLER2_EXTRA_SATURATION_MARGIN_DB \
+	"apm:gain_controller2_extra_saturation_margin_db"
+#define APM_GAIN_CONTROLLER2_EXTRA_SATURATION_MARGIN_DB_VALUE 2.f
 #define APM_GAIN_CONTROL_COMPRESSION_GAIN_DB "apm:gain_control_compression_gain_db"
 #define APM_GAIN_CONTROL_COMPRESSION_GAIN_DB_VALUE 9
 /* 0: adaptive analog, 1: adaptive digital, 2: fixed digital */

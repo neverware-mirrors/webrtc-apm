@@ -68,7 +68,7 @@ rtc_source_set("compile_assert_c") {
 }
 
 # The subset of rtc_base approved for use outside of libjingle.
-# TODO(bugs.webrtc.org/9838): Create small and focues build targets and remove
+# TODO(bugs.webrtc.org/9838): Create small and focused build targets and remove
 # the old concept of rtc_base and rtc_base_approved.
 rtc_source_set("rtc_base_approved") {
   visibility = [ "*" ]
@@ -76,9 +76,12 @@ rtc_source_set("rtc_base_approved") {
     ":checks",
     ":rtc_task_queue",
     ":safe_compare",
+    ":safe_minmax",
     ":type_traits",
     "..:webrtc_common",
     "../api:array_view",
+    "../system_wrappers:field_trial",
+    "experiments:field_trial_parser",
     "system:arch",
     "system:unused",
     "third_party/base64",
@@ -118,8 +121,6 @@ rtc_source_set("rtc_base_approved") {
     "numerics/sample_counter.cc",
     "numerics/sample_counter.h",
     "onetimeevent.h",
-    "pathutils.cc",
-    "pathutils.h",
     "platform_file.cc",
     "platform_file.h",
     "race_checker.cc",
@@ -260,7 +261,6 @@ rtc_source_set("platform_thread") {
 rtc_source_set("rtc_event") {
   deps = [
     ":checks",
-    ":macromagic",
   ]
 
   if (build_with_chromium) {
@@ -282,6 +282,7 @@ rtc_source_set("logging") {
   visibility = [ "*" ]
   libs = []
   deps = [
+    ":checks",
     ":criticalsection",
     ":macromagic",
     ":platform_thread_types",
@@ -367,6 +368,7 @@ rtc_source_set("rate_limiter") {
   deps = [
     ":rtc_base_approved",
     "../system_wrappers",
+    "//third_party/abseil-cpp/absl/types:optional",
   ]
 }
 
@@ -651,6 +653,8 @@ rtc_static_library("rtc_numerics") {
   sources = [
     "numerics/exp_filter.cc",
     "numerics/exp_filter.h",
+    "numerics/moving_average.cc",
+    "numerics/moving_average.h",
     "numerics/moving_median_filter.h",
     "numerics/percentile_filter.h",
     "numerics/sequence_number_util.h",
@@ -688,48 +692,23 @@ rtc_source_set("rtc_json") {
 
 rtc_static_library("rtc_base") {
   visibility = [ "*" ]
-  public_deps = []
-  if (!build_with_mozilla) {
-    public_deps += [ ":rtc_base_generic" ]
-  }
-  if (is_win) {
-    sources = [
-      "noop.cc",
-    ]
-  }
-  if (is_ios || is_mac) {
-    sources = [
-      "noop.mm",
-    ]
-    public_deps += [ ":rtc_base_objc" ]
-  }
-}
-
-if (is_ios || is_mac) {
-  rtc_source_set("rtc_base_objc") {
-    sources = [
-      "thread_darwin.mm",
-    ]
-    deps = [
-      ":rtc_base_generic",
-    ]
-    visibility = [ ":rtc_base" ]
-  }
-}
-
-rtc_static_library("rtc_base_generic") {
   cflags = []
   cflags_cc = []
   libs = []
   defines = []
   deps = [
     ":checks",
+
+    # For deprecation of rtc::PacketTime, in asyncpacketsocket.h.
+    ":deprecation",
     ":stringutils",
     "..:webrtc_common",
     "../api:array_view",
+    "network:sent_packet",
     "third_party/base64",
     "third_party/sigslot",
     "//third_party/abseil-cpp/absl/memory",
+    "//third_party/abseil-cpp/absl/strings",
     "//third_party/abseil-cpp/absl/types:optional",
   ]
   public_deps = [
@@ -762,8 +741,6 @@ rtc_static_library("rtc_base_generic") {
     "dscp.h",
     "filerotatingstream.cc",
     "filerotatingstream.h",
-    "fileutils.cc",
-    "fileutils.h",
     "gunit_prod.h",
     "helpers.cc",
     "helpers.h",
@@ -772,6 +749,8 @@ rtc_static_library("rtc_base_generic") {
     "ipaddress.cc",
     "ipaddress.h",
     "keep_ref_until_done.h",
+    "key_derivation.cc",
+    "key_derivation.h",
     "mdns_responder_interface.h",
     "messagedigest.cc",
     "messagedigest.h",
@@ -792,6 +771,8 @@ rtc_static_library("rtc_base_generic") {
     "nullsocketserver.cc",
     "nullsocketserver.h",
     "openssl.h",
+    "openssl_key_derivation_hkdf.cc",
+    "openssl_key_derivation_hkdf.h",
     "openssladapter.cc",
     "openssladapter.h",
     "opensslcertificate.cc",
@@ -827,8 +808,6 @@ rtc_static_library("rtc_base_generic") {
     "socketaddresspair.h",
     "socketfactory.h",
     "socketserver.h",
-    "socketstream.cc",
-    "socketstream.h",
     "ssladapter.cc",
     "ssladapter.h",
     "sslcertificate.cc",
@@ -845,11 +824,6 @@ rtc_static_library("rtc_base_generic") {
     "thread.h",
   ]
 
-  visibility = [
-    ":rtc_base",
-    ":rtc_base_objc",
-  ]
-
   if (build_with_chromium) {
     include_dirs = [ "../../boringssl/src/include" ]
     public_configs += [ ":rtc_base_chromium_config" ]
@@ -859,8 +833,6 @@ rtc_static_library("rtc_base_generic") {
       "logsinks.cc",
       "logsinks.h",
       "numerics/mathutils.h",
-      "optionsfile.cc",
-      "optionsfile.h",
       "rollingaccumulator.h",
       "sslroots.h",
     ]
@@ -894,6 +866,7 @@ rtc_static_library("rtc_base_generic") {
 
   if (is_ios || is_mac) {
     sources += [ "macifaddrs_converter.cc" ]
+    deps += [ "system:cocoa_threading" ]
   }
 
   if (rtc_use_x11) {
@@ -919,18 +892,12 @@ rtc_static_library("rtc_base_generic") {
       "macutils.cc",
       "macutils.h",
     ]
-    libs += [
-      # For ProcessInformationCopyDictionary in unixfilesystem.cc.
-      "ApplicationServices.framework",
-    ]
   }
 
   if (is_win) {
     sources += [
       "win32.cc",
       "win32.h",
-      "win32filesystem.cc",
-      "win32filesystem.h",
       "win32window.cc",
       "win32window.h",
     ]
@@ -948,8 +915,6 @@ rtc_static_library("rtc_base_generic") {
     sources += [
       "ifaddrs_converter.cc",
       "ifaddrs_converter.h",
-      "unixfilesystem.cc",
-      "unixfilesystem.h",
     ]
   }
 
@@ -984,6 +949,8 @@ rtc_source_set("rtc_base_tests_utils") {
     "firewallsocketserver.h",
     "gunit.cc",
     "gunit.h",
+    "memory_stream.cc",
+    "memory_stream.h",
     "memory_usage.cc",
     "memory_usage.h",
     "natserver.cc",
@@ -996,6 +963,8 @@ rtc_source_set("rtc_base_tests_utils") {
     "proxyserver.h",
     "sigslottester.h",
     "sigslottester.h.pump",
+    "socketstream.cc",
+    "socketstream.h",
     "testbase64.h",
     "testcertificateverifier.h",
     "testclient.cc",
@@ -1127,7 +1096,6 @@ if (rtc_include_tests) {
       "numerics/safe_minmax_unittest.cc",
       "numerics/sample_counter_unittest.cc",
       "onetimeevent_unittest.cc",
-      "pathutils_unittest.cc",
       "platform_file_unittest.cc",
       "platform_thread_unittest.cc",
       "random_unittest.cc",
@@ -1231,6 +1199,7 @@ if (rtc_include_tests) {
 
     sources = [
       "numerics/exp_filter_unittest.cc",
+      "numerics/moving_average_unittest.cc",
       "numerics/moving_median_filter_unittest.cc",
       "numerics/percentile_filter_unittest.cc",
       "numerics/sequence_number_util_unittest.cc",
@@ -1272,7 +1241,6 @@ if (rtc_include_tests) {
       "messagequeue_unittest.cc",
       "nat_unittest.cc",
       "network_unittest.cc",
-      "optionsfile_unittest.cc",
       "proxy_unittest.cc",
       "rollingaccumulator_unittest.cc",
       "rtccertificate_unittest.cc",
@@ -1291,6 +1259,7 @@ if (rtc_include_tests) {
     }
     if (is_posix || is_fuchsia) {
       sources += [
+        "openssl_key_derivation_hkdf_unittest.cc",
         "openssladapter_unittest.cc",
         "opensslsessioncache_unittest.cc",
         "opensslutility_unittest.cc",

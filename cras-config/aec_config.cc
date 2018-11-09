@@ -24,6 +24,14 @@ void aec_config_get(dictionary *ini, webrtc::EchoCanceller3Config *config)
 	if (ini == NULL)
 		return;
 
+	config->buffering.use_new_render_buffering =
+		AEC_GET_INT(ini, BUFFERING, USE_NEW_RENDER_BUFFERING);
+	config->buffering.excess_render_detection_interval_blocks =
+		AEC_GET_INT(ini, BUFFERING,
+			EXCESS_RENDER_DETECTION_INTERVAL_BLOCKS);
+	config->buffering.max_allowed_excess_render_blocks =
+		AEC_GET_INT(ini, BUFFERING, MAX_ALLOWED_EXCESS_RENDER_BLOCKS);
+
 	config->delay.default_delay =
 		AEC_GET_INT(ini, DELAY, DEFAULT_DELAY);
 	config->delay.down_sampling_factor =
@@ -44,6 +52,14 @@ void aec_config_get(dictionary *ini, webrtc::EchoCanceller3Config *config)
 		AEC_GET_INT(ini, DELAY, SKEW_HYSTERESIS_BLOCKS);
 	config->delay.fixed_capture_delay_samples =
 		AEC_GET_INT(ini, DELAY, FIXED_CAPTURE_DELAY_SAMPLES);
+	config->delay.delay_estimate_smoothing =
+		AEC_GET_FLOAT(ini, DELAY, DELAY_ESTIMATE_SMOOTHING);
+	config->delay.delay_candidate_detection_threshold =
+		AEC_GET_FLOAT(ini, DELAY, DELAY_CANDIDATE_DETECTION_THRESHOLD);
+	config->delay.delay_selection_thresholds.initial =
+		AEC_GET_INT(ini, DELAY, DELAY_SELECTION_THRESHOLD_INITIAL);
+	config->delay.delay_selection_thresholds.converged =
+		AEC_GET_INT(ini, DELAY, DELAY_SELECTION_THRESHOLD_CONVERGED);
 
 	config->filter.main.length_blocks =
 		AEC_GET_INT(ini, FILTER_MAIN, LENGTH_BLOCKS);
@@ -53,6 +69,8 @@ void aec_config_get(dictionary *ini, webrtc::EchoCanceller3Config *config)
 		AEC_GET_FLOAT(ini, FILTER_MAIN, LEAKAGE_DIVERGED);
 	config->filter.main.error_floor =
 		AEC_GET_FLOAT(ini, FILTER_MAIN, ERROR_FLOOR);
+	config->filter.main.error_ceil =
+		AEC_GET_FLOAT(ini, FILTER_MAIN, ERROR_CEIL);
 	config->filter.main.noise_gate =
 		AEC_GET_FLOAT(ini, FILTER_MAIN, NOISE_GATE);
 
@@ -71,6 +89,8 @@ void aec_config_get(dictionary *ini, webrtc::EchoCanceller3Config *config)
 		AEC_GET_FLOAT(ini, FILTER_MAIN_INIT, LEAKAGE_DIVERGED);
 	config->filter.main_initial.error_floor =
 		AEC_GET_FLOAT(ini, FILTER_MAIN_INIT, ERROR_FLOOR);
+	config->filter.main_initial.error_ceil =
+		AEC_GET_FLOAT(ini, FILTER_MAIN_INIT, ERROR_CEIL);
 	config->filter.main_initial.noise_gate =
 		AEC_GET_FLOAT(ini, FILTER_MAIN_INIT, NOISE_GATE);
 
@@ -114,35 +134,6 @@ void aec_config_get(dictionary *ini, webrtc::EchoCanceller3Config *config)
 	config->ep_strength.echo_can_saturate =
 		AEC_GET_INT(ini, EP_STRENGTH, ECHO_CAN_SATURATE);
 
-	config->gain_mask.m0 =
-		AEC_GET_FLOAT(ini, GAIN_MASK, M0);
-	config->gain_mask.m1 =
-		AEC_GET_FLOAT(ini, GAIN_MASK, M1);
-	config->gain_mask.m2 =
-		AEC_GET_FLOAT(ini, GAIN_MASK, M2);
-	config->gain_mask.m3 =
-		AEC_GET_FLOAT(ini, GAIN_MASK, M3);
-	config->gain_mask.m5 =
-		AEC_GET_FLOAT(ini, GAIN_MASK, M5);
-	config->gain_mask.m6 =
-		AEC_GET_FLOAT(ini, GAIN_MASK, M6);
-	config->gain_mask.m7 =
-		AEC_GET_FLOAT(ini, GAIN_MASK, M7);
-	config->gain_mask.m8 =
-		AEC_GET_FLOAT(ini, GAIN_MASK, M8);
-	config->gain_mask.m9 =
-		AEC_GET_FLOAT(ini, GAIN_MASK, M9);
-	config->gain_mask.gain_curve_offset =
-		AEC_GET_FLOAT(ini, GAIN_MASK, GAIN_CURVE_OFFSET);
-	config->gain_mask.gain_curve_slope =
-		AEC_GET_FLOAT(ini, GAIN_MASK, GAIN_CURVE_SLOPE);
-	config->gain_mask.temporal_masking_lf =
-		AEC_GET_FLOAT(ini, GAIN_MASK, TEMPORAL_MASKING_LF);
-	config->gain_mask.temporal_masking_hf =
-		AEC_GET_FLOAT(ini, GAIN_MASK, TEMPORAL_MASKING_HF);
-	config->gain_mask.temporal_masking_lf_bands =
-		AEC_GET_INT(ini, GAIN_MASK, TEMPORAL_MASKING_LF_BANDS);
-
 	config->echo_audibility.low_render_limit =
 		AEC_GET_FLOAT(ini, ECHO_AUDIBILITY, LOW_RENDER_LIMIT);
 	config->echo_audibility.normal_render_limit =
@@ -157,6 +148,9 @@ void aec_config_get(dictionary *ini, webrtc::EchoCanceller3Config *config)
 		AEC_GET_FLOAT(ini, ECHO_AUDIBILITY, AUDIBILITY_THRESHOLD_HF);
 	config->echo_audibility.use_stationary_properties =
 		AEC_GET_INT(ini, ECHO_AUDIBILITY, USE_STATIONARY_PROPERTIES);
+	config->echo_audibility.use_stationarity_properties_at_init =
+		AEC_GET_INT(ini, ECHO_AUDIBILITY,
+			    USE_STATIONARITY_PROPERTIES_AT_INIT);
 
 	config->render_levels.active_render_limit =
 		AEC_GET_FLOAT(ini, RENDER_LEVELS, ACTIVE_RENDER_LIMIT);
@@ -253,6 +247,9 @@ void aec_config_get(dictionary *ini, webrtc::EchoCanceller3Config *config)
 	config->suppressor.dominant_nearend_detection.enr_threshold =
 		AEC_GET_FLOAT(ini, SUPPRESSOR_DOMINANT_NEAREND_DETECTION,
 			ENR_THRESHOLD);
+	config->suppressor.dominant_nearend_detection.enr_exit_threshold =
+		AEC_GET_FLOAT(ini, SUPPRESSOR_DOMINANT_NEAREND_DETECTION,
+			ENR_EXIT_THRESHOLD);
 	config->suppressor.dominant_nearend_detection.snr_threshold =
 		AEC_GET_FLOAT(ini, SUPPRESSOR_DOMINANT_NEAREND_DETECTION,
 			SNR_THRESHOLD);
@@ -262,6 +259,9 @@ void aec_config_get(dictionary *ini, webrtc::EchoCanceller3Config *config)
 	config->suppressor.dominant_nearend_detection.trigger_threshold =
 		AEC_GET_INT(ini, SUPPRESSOR_DOMINANT_NEAREND_DETECTION,
 			TRIGGER_THRESHOLD);
+	config->suppressor.dominant_nearend_detection.use_during_initial_phase =
+		AEC_GET_INT(ini, SUPPRESSOR_DOMINANT_NEAREND_DETECTION,
+			USE_DURING_INITIAL_PHASE);
 
 	config->suppressor.high_bands_suppression.enr_threshold =
 		AEC_GET_FLOAT(ini, SUPPRESSOR_HIGH_BANDS_SUPPRESSION,
@@ -285,6 +285,14 @@ void aec_config_dump(dictionary *ini)
 	aec_config_get(ini, &config);
 
 	syslog(LOG_ERR, "---- aec config dump ----");
+	syslog(LOG_ERR, "Buffering:");
+	syslog(LOG_ERR, "    use_new_render_buffering %d",
+			config.buffering.use_new_render_buffering);
+	syslog(LOG_ERR, "    excess_render_detection_interval_blocks %zu",
+			config.buffering.excess_render_detection_interval_blocks);
+	syslog(LOG_ERR, "    max_allowed_excess_render_blocks %zu",
+			config.buffering.max_allowed_excess_render_blocks);
+
 	syslog(LOG_ERR, "Delay:");
 	syslog(LOG_ERR, "    default_delay %zu sampling_factor %zu num_filters %zu",
 			config.delay.default_delay,
@@ -301,14 +309,23 @@ void aec_config_dump(dictionary *ini)
 			config.delay.skew_hysteresis_blocks);
 	syslog(LOG_ERR, "    fixed_capture_delay_samples %zu",
 			config.delay.fixed_capture_delay_samples);
+	syslog(LOG_ERR, "    delay_estimate_smoothing %f",
+			config.delay.delay_estimate_smoothing);
+	syslog(LOG_ERR, "    delay_candidate_detection_threshold %f",
+			config.delay.delay_candidate_detection_threshold);
+	syslog(LOG_ERR, "    delay_selection_thresholds.initial %d",
+			config.delay.delay_selection_thresholds.initial);
+	syslog(LOG_ERR, "    delay_selection_thresholds.converged %d",
+			config.delay.delay_selection_thresholds.converged);
 
 	syslog(LOG_ERR, "Filter main configuration:");
 	syslog(LOG_ERR, "    length_blocks %zu, leakage_converged %f, leakage_diverged %f",
 			config.filter.main.length_blocks,
 			config.filter.main.leakage_converged,
 			config.filter.main.leakage_diverged);
-	syslog(LOG_ERR, "    error_floor %f, noise_gate %f",
+	syslog(LOG_ERR, "    error_floor %f, error_ceil %f, noise_gate %f",
 			config.filter.main.error_floor,
+			config.filter.main.error_ceil,
 			config.filter.main.noise_gate);
 	syslog(LOG_ERR, "Filter shadow configuration:");
 	syslog(LOG_ERR, "    length_blocks %zu, rate %f, noise_gate %f",
@@ -316,12 +333,13 @@ void aec_config_dump(dictionary *ini)
 			config.filter.shadow.rate,
 			config.filter.shadow.noise_gate);
 	syslog(LOG_ERR, "Filter main initial configuration:");
-	syslog(LOG_ERR, "    length_blocks %zu, leakage_converged %f",
+	syslog(LOG_ERR, "    length_blocks %zu, leakage_converged %f leakage_diverged %f",
 			config.filter.main_initial.length_blocks,
-			config.filter.main_initial.leakage_converged);
-	syslog(LOG_ERR, "    leakage_diverged %f, error_floor %f, noise_gate %f",
-			config.filter.main_initial.leakage_diverged,
+			config.filter.main_initial.leakage_converged,
+			config.filter.main_initial.leakage_diverged);
+	syslog(LOG_ERR, "    error_floor %f, error_ceil %f, noise_gate %f",
 			config.filter.main_initial.error_floor,
+			config.filter.main_initial.error_ceil,
 			config.filter.main_initial.noise_gate);
 	syslog(LOG_ERR, "Filter shadow initial configuration:");
 	syslog(LOG_ERR, "    length_blocks %zu, rate %f, noise_gate %f",
@@ -349,25 +367,6 @@ void aec_config_dump(dictionary *ini)
 			config.ep_strength.echo_can_saturate,
 			config.ep_strength.bounded_erl,
 			config.ep_strength.reverb_based_on_render);
-	syslog(LOG_ERR, "Gain mask: m0 %f m1 %f m2 %f m3 %f m5 %f",
-			config.gain_mask.m0,
-			config.gain_mask.m1,
-			config.gain_mask.m2,
-			config.gain_mask.m3,
-			config.gain_mask.m5);
-	syslog(LOG_ERR, "    m6 %f m7 %f m8 %f m9 %f",
-			config.gain_mask.m6,
-			config.gain_mask.m7,
-			config.gain_mask.m8,
-			config.gain_mask.m9);
-	syslog(LOG_ERR, "    gain_curve offset %f, gain_curve_slope %f",
-			config.gain_mask.gain_curve_offset,
-			config.gain_mask.gain_curve_slope);
-	syslog(LOG_ERR, "    temporal_masking_lf %f, temporal_masking_hf %f",
-			config.gain_mask.temporal_masking_lf,
-			config.gain_mask.temporal_masking_hf);
-	syslog(LOG_ERR, "    temporal_masking_lf_bands %zu",
-			config.gain_mask.temporal_masking_lf_bands);
 	syslog(LOG_ERR, "Echo audibility:");
 	syslog(LOG_ERR, "    low_render_limit %f, normal_render_limit %f",
 			config.echo_audibility.low_render_limit,
@@ -381,6 +380,9 @@ void aec_config_dump(dictionary *ini)
 			config.echo_audibility.audibility_threshold_hf);
 	syslog(LOG_ERR, "    use_stationary_properties %d",
 			config.echo_audibility.use_stationary_properties);
+	syslog(LOG_ERR, "    use_stationarity_properties_at_init %d",
+			config.echo_audibility.use_stationarity_properties_at_init);
+
 	syslog(LOG_ERR, "Render levels:");
 	syslog(LOG_ERR, "    active_render_limit %f",
 			config.render_levels.active_render_limit);
@@ -447,12 +449,16 @@ void aec_config_dump(dictionary *ini)
 	syslog(LOG_ERR, "    Dominant nearend detection:");
 	syslog(LOG_ERR, "        enr_threshold %f",
 			config.suppressor.dominant_nearend_detection.enr_threshold);
+	syslog(LOG_ERR, "        enr_exit_threshold %f",
+			config.suppressor.dominant_nearend_detection.enr_exit_threshold);
 	syslog(LOG_ERR, "        snr_threshold %f",
 			config.suppressor.dominant_nearend_detection.snr_threshold);
 	syslog(LOG_ERR, "        hold_duration %d",
 			config.suppressor.dominant_nearend_detection.hold_duration);
 	syslog(LOG_ERR, "        trigger_threshold %d",
 			config.suppressor.dominant_nearend_detection.trigger_threshold);
+	syslog(LOG_ERR, "        use_during_initial_phase %d",
+			config.suppressor.dominant_nearend_detection.use_during_initial_phase);
 	syslog(LOG_ERR, "    High bands suppression:");
 	syslog(LOG_ERR, "        enr_threshold %f max_gain_during_echo %f",
 			config.suppressor.high_bands_suppression.enr_threshold,

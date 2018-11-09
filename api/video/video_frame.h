@@ -15,12 +15,15 @@
 
 #include "absl/types/optional.h"
 #include "api/video/color_space.h"
+#include "api/video/hdr_metadata.h"
 #include "api/video/video_frame_buffer.h"
 #include "api/video/video_rotation.h"
+#include "rtc_base/scoped_ref_ptr.h"
+#include "rtc_base/system/rtc_export.h"
 
 namespace webrtc {
 
-class VideoFrame {
+class RTC_EXPORT VideoFrame {
  public:
   // Preferred way of building VideoFrame objects.
   class Builder {
@@ -37,6 +40,7 @@ class VideoFrame {
     Builder& set_ntp_time_ms(int64_t ntp_time_ms);
     Builder& set_rotation(VideoRotation rotation);
     Builder& set_color_space(const ColorSpace& color_space);
+    Builder& set_hdr_metadata(const HdrMetadata& hdr_metadata);
 
    private:
     rtc::scoped_refptr<webrtc::VideoFrameBuffer> video_frame_buffer_;
@@ -45,6 +49,7 @@ class VideoFrame {
     int64_t ntp_time_ms_ = 0;
     VideoRotation rotation_ = kVideoRotation_0;
     absl::optional<ColorSpace> color_space_;
+    absl::optional<HdrMetadata> hdr_metadata_;
   };
 
   // To be deprecated. Migrate all use to Builder.
@@ -110,8 +115,11 @@ class VideoFrame {
   VideoRotation rotation() const { return rotation_; }
   void set_rotation(VideoRotation rotation) { rotation_ = rotation; }
 
-  // Set Color space when available.
+  // Get color space when available.
   absl::optional<ColorSpace> color_space() const { return color_space_; }
+
+  // Get HDR metadata when available.
+  absl::optional<HdrMetadata> hdr_metadata() const { return hdr_metadata_; }
 
   // Get render time in milliseconds.
   // TODO(nisse): Deprecated. Migrate all users to timestamp_us().
@@ -133,7 +141,8 @@ class VideoFrame {
              uint32_t timestamp_rtp,
              int64_t ntp_time_ms,
              VideoRotation rotation,
-             const absl::optional<ColorSpace>& color_space);
+             const absl::optional<ColorSpace>& color_space,
+             const absl::optional<HdrMetadata>& hdr_metadata);
 
   // An opaque reference counted handle that stores the pixel data.
   rtc::scoped_refptr<webrtc::VideoFrameBuffer> video_frame_buffer_;
@@ -142,6 +151,7 @@ class VideoFrame {
   int64_t timestamp_us_;
   VideoRotation rotation_;
   absl::optional<ColorSpace> color_space_;
+  absl::optional<HdrMetadata> hdr_metadata_;
 };
 
 }  // namespace webrtc

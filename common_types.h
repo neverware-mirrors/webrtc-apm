@@ -11,12 +11,10 @@
 #ifndef COMMON_TYPES_H_
 #define COMMON_TYPES_H_
 
-#include <stddef.h>
-#include <string.h>
-#include <string>
-#include <vector>
+#include <stddef.h>  // For size_t
+#include <cstdint>
 
-#include "api/array_view.h"
+#include "absl/strings/match.h"
 // TODO(sprang): Remove this include when all usage includes it directly.
 #include "api/video/video_bitrate_allocation.h"
 #include "rtc_base/checks.h"
@@ -29,16 +27,6 @@
 #endif
 
 #define RTP_PAYLOAD_NAME_SIZE 32u
-
-#if defined(WEBRTC_WIN) || defined(WIN32)
-// Compares two strings without regard to case.
-#define STR_CASE_CMP(s1, s2) ::_stricmp(s1, s2)
-// Compares characters of two strings without regard to case.
-#define STR_NCASE_CMP(s1, s2, n) ::_strnicmp(s1, s2, n)
-#else
-#define STR_CASE_CMP(s1, s2) ::strcasecmp(s1, s2)
-#define STR_NCASE_CMP(s1, s2, n) ::strncasecmp(s1, s2, n)
-#endif
 
 namespace webrtc {
 
@@ -207,7 +195,7 @@ struct CodecInst {
 
   bool operator==(const CodecInst& other) const {
     return pltype == other.pltype &&
-           (STR_CASE_CMP(plname, other.plname) == 0) &&
+           absl::EqualsIgnoreCase(plname, other.plname) &&
            plfreq == other.plfreq && pacsize == other.pacsize &&
            channels == other.channels && rate == other.rate;
   }
@@ -360,9 +348,6 @@ struct SpatialLayer {
 // Simulcast is when the same stream is encoded multiple times with different
 // settings such as resolution.
 typedef SpatialLayer SimulcastStream;
-
-// TODO(sprang): Remove this when downstream projects have been updated.
-using BitrateAllocation = VideoBitrateAllocation;
 
 // Bandwidth over-use detector options.  These are used to drive
 // experimentation with bandwidth estimation parameters.

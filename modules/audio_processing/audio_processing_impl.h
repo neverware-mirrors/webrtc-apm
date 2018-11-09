@@ -109,7 +109,6 @@ class AudioProcessingImpl : public AudioProcessing {
   bool was_stream_delay_set() const override
       RTC_EXCLUSIVE_LOCKS_REQUIRED(crit_capture_);
 
-  AudioProcessingStatistics GetStatistics() const override;
   AudioProcessingStats GetStatistics(bool has_remote_tracks) const override;
 
   // Methods returning pointers to APM submodules.
@@ -118,8 +117,6 @@ class AudioProcessingImpl : public AudioProcessing {
   // created only once in a single-treaded manner
   // during APM creation).
   GainControl* gain_control() const override;
-  // TODO(peah): Deprecate this API call.
-  HighPassFilter* high_pass_filter() const override;
   LevelEstimator* level_estimator() const override;
   NoiseSuppression* noise_suppression() const override;
   VoiceDetection* voice_detection() const override;
@@ -163,9 +160,6 @@ class AudioProcessingImpl : public AudioProcessing {
 
   RuntimeSettingEnqueuer capture_runtime_settings_enqueuer_;
   RuntimeSettingEnqueuer render_runtime_settings_enqueuer_;
-
-  // Submodule interface implementations.
-  std::unique_ptr<HighPassFilter> high_pass_filter_impl_;
 
   // EchoControl factory.
   std::unique_ptr<EchoControlFactory> echo_control_factory_;

@@ -10,17 +10,24 @@
 
 #include "modules/audio_processing/agc2/adaptive_agc.h"
 
-#include <algorithm>
-#include <numeric>
-
 #include "common_audio/include/audio_util.h"
 #include "modules/audio_processing/agc2/vad_with_level.h"
 #include "modules/audio_processing/logging/apm_data_dumper.h"
+#include "rtc_base/checks.h"
 
 namespace webrtc {
 
 AdaptiveAgc::AdaptiveAgc(ApmDataDumper* apm_data_dumper)
     : speech_level_estimator_(apm_data_dumper),
+      gain_applier_(apm_data_dumper),
+      apm_data_dumper_(apm_data_dumper),
+      noise_level_estimator_(apm_data_dumper) {
+  RTC_DCHECK(apm_data_dumper);
+}
+
+AdaptiveAgc::AdaptiveAgc(ApmDataDumper* apm_data_dumper,
+                         float extra_saturation_margin_db)
+    : speech_level_estimator_(apm_data_dumper, extra_saturation_margin_db),
       gain_applier_(apm_data_dumper),
       apm_data_dumper_(apm_data_dumper),
       noise_level_estimator_(apm_data_dumper) {

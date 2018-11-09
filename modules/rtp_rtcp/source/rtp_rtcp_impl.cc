@@ -11,12 +11,14 @@
 #include "modules/rtp_rtcp/source/rtp_rtcp_impl.h"
 
 #include <string.h>
-
 #include <algorithm>
+#include <cstdint>
 #include <set>
 #include <string>
+#include <utility>
 
-#include "api/rtpparameters.h"
+#include "modules/rtp_rtcp/source/rtcp_packet/dlrr.h"
+#include "modules/rtp_rtcp/source/rtp_rtcp_config.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 
@@ -99,7 +101,9 @@ ModuleRtpRtcpImpl::ModuleRtpRtcpImpl(const Configuration& configuration)
         configuration.send_packet_observer,
         configuration.retransmission_rate_limiter,
         configuration.overhead_observer,
-        configuration.populate_network2_timestamp));
+        configuration.populate_network2_timestamp,
+        configuration.frame_encryptor, configuration.require_frame_encryption,
+        configuration.extmap_allow_mixed));
     // Make sure rtcp sender use same timestamp offset as rtp sender.
     rtcp_sender_.SetTimestampOffset(rtp_sender_->TimestampOffset());
 
@@ -253,6 +257,7 @@ void ModuleRtpRtcpImpl::IncomingRtcpPacket(const uint8_t* rtcp_packet,
 }
 
 int32_t ModuleRtpRtcpImpl::RegisterSendPayload(const CodecInst& voice_codec) {
+  rtcp_sender_.SetRtpClockRate(voice_codec.pltype, voice_codec.plfreq);
   return rtp_sender_->RegisterPayload(
       voice_codec.plname, voice_codec.pltype, voice_codec.plfreq,
       voice_codec.channels, (voice_codec.rate < 0) ? 0 : voice_codec.rate);
@@ -260,8 +265,10 @@ int32_t ModuleRtpRtcpImpl::RegisterSendPayload(const CodecInst& voice_codec) {
 
 void ModuleRtpRtcpImpl::RegisterVideoSendPayload(int payload_type,
                                                  const char* payload_name) {
-  RTC_CHECK_EQ(
-      0, rtp_sender_->RegisterPayload(payload_name, payload_type, 90000, 0, 0));
+  rtcp_sender_.SetRtpClockRate(payload_type, kVideoPayloadTypeFrequency);
+  RTC_CHECK_EQ(0,
+               rtp_sender_->RegisterPayload(payload_name, payload_type,
+                                            kVideoPayloadTypeFrequency, 0, 0));
 }
 
 int32_t ModuleRtpRtcpImpl::DeRegisterSendPayload(const int8_t payload_type) {
@@ -407,7 +414,7 @@ bool ModuleRtpRtcpImpl::SendOutgoingData(
     const RTPFragmentationHeader* fragmentation,
     const RTPVideoHeader* rtp_video_header,
     uint32_t* transport_frame_id_out) {
-  rtcp_sender_.SetLastRtpTime(time_stamp, capture_time_ms);
+  rtcp_sender_.SetLastRtpTime(time_stamp, capture_time_ms, payload_type);
   // Make sure an RTCP report isn't queued behind a key frame.
   if (rtcp_sender_.TimeToSendRTCPReport(kVideoFrameKey == frame_type)) {
     rtcp_sender_.SendRTCP(GetFeedbackState(), kRtcpReport);
@@ -607,6 +614,10 @@ void ModuleRtpRtcpImpl::SetRemb(int64_t bitrate_bps,
 
 void ModuleRtpRtcpImpl::UnsetRemb() {
   rtcp_sender_.UnsetRemb();
+}
+
+void ModuleRtpRtcpImpl::SetExtmapAllowMixed(bool extmap_allow_mixed) {
+  rtp_sender_->SetExtmapAllowMixed(extmap_allow_mixed);
 }
 
 int32_t ModuleRtpRtcpImpl::RegisterSendRtpHeaderExtension(

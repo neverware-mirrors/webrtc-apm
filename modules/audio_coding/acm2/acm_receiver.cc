@@ -10,21 +10,22 @@
 
 #include "modules/audio_coding/acm2/acm_receiver.h"
 
-#include <stdlib.h>  // malloc
-
-#include <algorithm>  // sort
+#include <stdlib.h>
+#include <string.h>
+#include <cstdint>
 #include <vector>
 
+#include "absl/strings/match.h"
+#include "api/audio/audio_frame.h"
 #include "api/audio_codecs/audio_decoder.h"
-#include "common_audio/signal_processing/include/signal_processing_library.h"
-#include "common_types.h"  // NOLINT(build/include)
+#include "common_types.h"
 #include "modules/audio_coding/acm2/acm_resampler.h"
 #include "modules/audio_coding/acm2/call_statistics.h"
 #include "modules/audio_coding/acm2/rent_a_codec.h"
 #include "modules/audio_coding/neteq/include/neteq.h"
+#include "modules/audio_coding/neteq/neteq_decoder_enum.h"
 #include "modules/include/module_common_types.h"
 #include "rtc_base/checks.h"
-#include "rtc_base/format_macros.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/numerics/safe_conversions.h"
 #include "rtc_base/strings/audio_format_to_string.h"
@@ -92,7 +93,7 @@ int AcmReceiver::InsertPacket(const WebRtcRTPHeader& rtp_header,
     }
     receive_timestamp = NowInTimestamp(ci->plfreq);
 
-    if (STR_CASE_CMP(ci->plname, "cn") == 0) {
+    if (absl::EqualsIgnoreCase(ci->plname, "cn")) {
       if (last_audio_decoder_ && last_audio_decoder_->channels > 1) {
         // This is a CNG and the audio codec is not mono, so skip pushing in
         // packets into NetEq.
@@ -391,7 +392,7 @@ const absl::optional<CodecInst> AcmReceiver::RtpHeaderToDecoder(
     uint8_t first_payload_byte) const {
   const absl::optional<CodecInst> ci =
       neteq_->GetDecoder(rtp_header.payloadType);
-  if (ci && STR_CASE_CMP(ci->plname, "red") == 0) {
+  if (ci && absl::EqualsIgnoreCase(ci->plname, "red")) {
     // This is a RED packet. Get the payload of the audio codec.
     return neteq_->GetDecoder(first_payload_byte & 0x7f);
   } else {

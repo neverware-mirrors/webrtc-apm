@@ -16,6 +16,7 @@
 #include <utility>
 
 #include "absl/memory/memory.h"
+#include "absl/strings/match.h"
 #include "logging/rtc_event_log/events/rtc_event_rtp_packet_outgoing.h"
 #include "logging/rtc_event_log/rtc_event_log.h"
 #include "modules/remote_bitrate_estimator/test/bwe_test_logging.h"
@@ -119,14 +120,22 @@ RTPSender::RTPSender(
     SendPacketObserver* send_packet_observer,
     RateLimiter* retransmission_rate_limiter,
     OverheadObserver* overhead_observer,
-    bool populate_network2_timestamp)
+    bool populate_network2_timestamp,
+    FrameEncryptorInterface* frame_encryptor,
+    bool require_frame_encryption,
+    bool extmap_allow_mixed)
     : clock_(clock),
       // TODO(holmer): Remove this conversion?
       clock_delta_ms_(clock_->TimeInMilliseconds() - rtc::TimeMillis()),
       random_(clock_->TimeInMicroseconds()),
       audio_configured_(audio),
       audio_(audio ? new RTPSenderAudio(clock, this) : nullptr),
-      video_(audio ? nullptr : new RTPSenderVideo(clock, this, flexfec_sender)),
+      video_(audio ? nullptr
+                   : new RTPSenderVideo(clock,
+                                        this,
+                                        flexfec_sender,
+                                        frame_encryptor,
+                                        require_frame_encryption)),
       paced_sender_(paced_sender),
       transport_sequence_number_allocator_(sequence_number_allocator),
       transport_feedback_observer_(transport_feedback_observer),
@@ -137,7 +146,7 @@ RTPSender::RTPSender(
       max_packet_size_(IP_PACKET_SIZE - 28),  // Default is IP-v4/UDP.
       last_payload_type_(-1),
       payload_type_map_(),
-      rtp_header_extension_map_(),
+      rtp_header_extension_map_(extmap_allow_mixed),
       packet_history_(clock),
       flexfec_packet_history_(clock),
       // Statistics
@@ -238,6 +247,11 @@ uint32_t RTPSender::NackOverheadRate() const {
   return nack_bitrate_sent_.Rate(clock_->TimeInMilliseconds()).value_or(0);
 }
 
+void RTPSender::SetExtmapAllowMixed(bool extmap_allow_mixed) {
+  rtc::CritScope lock(&send_critsect_);
+  rtp_header_extension_map_.SetExtmapAllowMixed(extmap_allow_mixed);
+}
+
 int32_t RTPSender::RegisterRtpHeaderExtension(RTPExtensionType type,
                                               uint8_t id) {
   rtc::CritScope lock(&send_critsect_);
@@ -259,13 +273,12 @@ int32_t RTPSender::DeregisterRtpHeaderExtension(RTPExtensionType type) {
   return rtp_header_extension_map_.Deregister(type);
 }
 
-int32_t RTPSender::RegisterPayload(
-    const char payload_name[RTP_PAYLOAD_NAME_SIZE],
-    int8_t payload_number,
-    uint32_t frequency,
-    size_t channels,
-    uint32_t rate) {
-  RTC_DCHECK_LT(strlen(payload_name), RTP_PAYLOAD_NAME_SIZE);
+int32_t RTPSender::RegisterPayload(absl::string_view payload_name,
+                                   int8_t payload_number,
+                                   uint32_t frequency,
+                                   size_t channels,
+                                   uint32_t rate) {
+  RTC_DCHECK_LT(payload_name.size(), RTP_PAYLOAD_NAME_SIZE);
   rtc::CritScope lock(&send_critsect_);
 
   std::map<int8_t, RtpUtility::Payload*>::iterator it =
@@ -277,8 +290,7 @@ int32_t RTPSender::RegisterPayload(
     RTC_DCHECK(payload);
 
     // Check if it's the same as we already have.
-    if (RtpUtility::StringCompare(payload->name, payload_name,
-                                  RTP_PAYLOAD_NAME_SIZE - 1)) {
+    if (absl::EqualsIgnoreCase(payload->name, payload_name)) {
       if (audio_configured_ && payload->typeSpecific.is_audio()) {
         auto& p = payload->typeSpecific.audio_payload();
         if (rtc::SafeEq(p.format.clockrate_hz, frequency) &&
@@ -654,7 +666,7 @@ int32_t RTPSender::ReSendPacket(uint16_t packet_id) {
   // Try to find packet in RTP packet history. Also verify RTT here, so that we
   // don't retransmit too often.
   absl::optional<RtpPacketHistory::PacketState> stored_packet =
-      packet_history_.GetPacketState(packet_id, true);
+      packet_history_.GetPacketState(packet_id);
   if (!stored_packet) {
     // Packet not found.
     return 0;
@@ -685,7 +697,7 @@ int32_t RTPSender::ReSendPacket(uint16_t packet_id) {
   }
 
   std::unique_ptr<RtpPacketToSend> packet =
-      packet_history_.GetPacketAndSetSendTime(packet_id, true);
+      packet_history_.GetPacketAndSetSendTime(packet_id);
   if (!packet) {
     // Packet could theoretically time out between the first check and this one.
     return 0;
@@ -763,17 +775,14 @@ bool RTPSender::TimeToSendPacket(uint32_t ssrc,
     return true;
 
   std::unique_ptr<RtpPacketToSend> packet;
-  // No need to verify RTT here, it has already been checked before putting the
-  // packet into the pacer. But _do_ update the send time.
   if (ssrc == SSRC()) {
-    packet = packet_history_.GetPacketAndSetSendTime(sequence_number, false);
+    packet = packet_history_.GetPacketAndSetSendTime(sequence_number);
   } else if (ssrc == FlexfecSsrc()) {
-    packet =
-        flexfec_packet_history_.GetPacketAndSetSendTime(sequence_number, false);
+    packet = flexfec_packet_history_.GetPacketAndSetSendTime(sequence_number);
   }
 
   if (!packet) {
-    // Packet cannot be found.
+    // Packet cannot be found or was resend too recently.
     return true;
   }
 
@@ -1149,8 +1158,15 @@ void RTPSender::GetDataCounters(StreamDataCounters* rtp_stats,
 
 std::unique_ptr<RtpPacketToSend> RTPSender::AllocatePacket() const {
   rtc::CritScope lock(&send_critsect_);
-  std::unique_ptr<RtpPacketToSend> packet(
-      new RtpPacketToSend(&rtp_header_extension_map_, max_packet_size_));
+  // TODO(danilchap): Find better motivator and value for extra capacity.
+  // RtpPacketizer might slightly miscalulate needed size,
+  // SRTP may benefit from extra space in the buffer and do encryption in place
+  // saving reallocation.
+  // While sending slightly oversized packet increase chance of dropped packet,
+  // it is better than crash on drop packet without trying to send it.
+  static constexpr int kExtraCapacity = 16;
+  auto packet = absl::make_unique<RtpPacketToSend>(
+      &rtp_header_extension_map_, max_packet_size_ + kExtraCapacity);
   RTC_DCHECK(ssrc_);
   packet->SetSsrc(*ssrc_);
   packet->SetCsrcs(csrcs_);

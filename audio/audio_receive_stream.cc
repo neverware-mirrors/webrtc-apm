@@ -13,14 +13,19 @@
 #include <string>
 #include <utility>
 
+#include "absl/memory/memory.h"
+#include "api/array_view.h"
+#include "api/audio_codecs/audio_format.h"
 #include "api/call/audio_sink.h"
+#include "api/rtpparameters.h"
 #include "audio/audio_send_stream.h"
 #include "audio/audio_state.h"
+#include "audio/channel_receive.h"
 #include "audio/channel_receive_proxy.h"
 #include "audio/conversion.h"
+#include "call/rtp_config.h"
 #include "call/rtp_stream_receiver_controller_interface.h"
-#include "modules/remote_bitrate_estimator/include/remote_bitrate_estimator.h"
-#include "modules/rtp_rtcp/include/rtp_rtcp.h"
+#include "common_types.h"  // NOLINT(build/include)
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/strings/string_builder.h"
@@ -53,6 +58,7 @@ std::string AudioReceiveStream::Config::ToString() const {
   ss << "{rtp: " << rtp.ToString();
   ss << ", rtcp_send_transport: "
      << (rtcp_send_transport ? "(Transport)" : "null");
+  ss << ", media_transport: " << (media_transport ? "(Transport)" : "null");
   if (!sync_group.empty()) {
     ss << ", sync_group: " << sync_group;
   }
@@ -73,10 +79,10 @@ std::unique_ptr<voe::ChannelReceiveProxy> CreateChannelAndProxy(
   return absl::make_unique<voe::ChannelReceiveProxy>(
       absl::make_unique<voe::ChannelReceive>(
           module_process_thread, internal_audio_state->audio_device_module(),
-          config.rtcp_send_transport, event_log, config.rtp.remote_ssrc,
-          config.jitter_buffer_max_packets,
+          config.media_transport, config.rtcp_send_transport, event_log,
+          config.rtp.remote_ssrc, config.jitter_buffer_max_packets,
           config.jitter_buffer_fast_accelerate, config.decoder_factory,
-          config.codec_pair_id, config.frame_decryptor));
+          config.codec_pair_id, config.frame_decryptor, config.crypto_options));
 }
 }  // namespace
 
@@ -106,8 +112,6 @@ AudioReceiveStream::AudioReceiveStream(
     std::unique_ptr<voe::ChannelReceiveProxy> channel_proxy)
     : audio_state_(audio_state), channel_proxy_(std::move(channel_proxy)) {
   RTC_LOG(LS_INFO) << "AudioReceiveStream: " << config.rtp.remote_ssrc;
-  RTC_DCHECK(receiver_controller);
-  RTC_DCHECK(packet_router);
   RTC_DCHECK(config.decoder_factory);
   RTC_DCHECK(config.rtcp_send_transport);
   RTC_DCHECK(audio_state_);
@@ -115,13 +119,16 @@ AudioReceiveStream::AudioReceiveStream(
 
   module_process_thread_checker_.DetachFromThread();
 
-  // Configure bandwidth estimation.
-  channel_proxy_->RegisterReceiverCongestionControlObjects(packet_router);
+  if (!config.media_transport) {
+    RTC_DCHECK(receiver_controller);
+    RTC_DCHECK(packet_router);
+    // Configure bandwidth estimation.
+    channel_proxy_->RegisterReceiverCongestionControlObjects(packet_router);
 
-  // Register with transport.
-  rtp_stream_receiver_ = receiver_controller->CreateReceiver(
-      config.rtp.remote_ssrc, channel_proxy_.get());
-
+    // Register with transport.
+    rtp_stream_receiver_ = receiver_controller->CreateReceiver(
+        config.rtp.remote_ssrc, channel_proxy_.get());
+  }
   ConfigureStream(this, config, true);
 }
 
@@ -130,7 +137,9 @@ AudioReceiveStream::~AudioReceiveStream() {
   RTC_LOG(LS_INFO) << "~AudioReceiveStream: " << config_.rtp.remote_ssrc;
   Stop();
   channel_proxy_->DisassociateSendChannel();
-  channel_proxy_->ResetReceiverCongestionControlObjects();
+  if (!config_.media_transport) {
+    channel_proxy_->ResetReceiverCongestionControlObjects();
+  }
 }
 
 void AudioReceiveStream::Reconfigure(

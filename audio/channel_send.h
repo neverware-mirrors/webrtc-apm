@@ -19,6 +19,8 @@
 #include "api/audio/audio_frame.h"
 #include "api/audio_codecs/audio_encoder.h"
 #include "api/call/transport.h"
+#include "api/crypto/cryptooptions.h"
+#include "api/media_transport_interface.h"
 #include "common_types.h"  // NOLINT(build/include)
 #include "modules/audio_coding/include/audio_coding_module.h"
 #include "modules/audio_processing/rms_level.h"
@@ -118,9 +120,12 @@ class ChannelSend
 
   ChannelSend(rtc::TaskQueue* encoder_queue,
               ProcessThread* module_process_thread,
+              MediaTransportInterface* media_transport,
               RtcpRttStats* rtcp_rtt_stats,
               RtcEventLog* rtc_event_log,
-              FrameEncryptorInterface* frame_encryptor);
+              FrameEncryptorInterface* frame_encryptor,
+              const webrtc::CryptoOptions& crypto_options,
+              bool extmap_allow_mixed);
 
   virtual ~ChannelSend();
 
@@ -137,6 +142,7 @@ class ChannelSend
 
   // Codecs
   void SetBitRate(int bitrate_bps, int64_t probing_interval_ms);
+  int GetBitRate() const;
   bool EnableAudioNetworkAdaptor(const std::string& config_string);
   void DisableAudioNetworkAdaptor();
 
@@ -166,6 +172,7 @@ class ChannelSend
   int SetLocalSSRC(unsigned int ssrc);
 
   void SetMid(const std::string& mid, int extension_id);
+  void SetExtmapAllowMixed(bool extmap_allow_mixed);
   int SetSendAudioLevelIndicationStatus(bool enable, unsigned char id);
   void EnableSendTransportSequenceNumber(int id);
 
@@ -225,7 +232,8 @@ class ChannelSend
   int64_t GetRTT() const;
 
   // E2EE Custom Audio Frame Encryption
-  void SetFrameEncryptor(FrameEncryptorInterface* frame_encryptor);
+  void SetFrameEncryptor(
+      rtc::scoped_refptr<FrameEncryptorInterface> frame_encryptor);
 
  private:
   class ProcessAndEncodeAudioTask;
@@ -246,6 +254,21 @@ class ChannelSend
       RTC_EXCLUSIVE_LOCKS_REQUIRED(overhead_per_packet_lock_);
 
   int GetRtpTimestampRateHz() const;
+
+  int32_t SendRtpAudio(FrameType frameType,
+                       uint8_t payloadType,
+                       uint32_t timeStamp,
+                       rtc::ArrayView<const uint8_t> payload,
+                       const RTPFragmentationHeader* fragmentation);
+
+  int32_t SendMediaTransportAudio(FrameType frameType,
+                                  uint8_t payloadType,
+                                  uint32_t timeStamp,
+                                  rtc::ArrayView<const uint8_t> payload,
+                                  const RTPFragmentationHeader* fragmentation);
+
+  // Return media transport or nullptr if using RTP.
+  MediaTransportInterface* media_transport() { return media_transport_; }
 
   // Called on the encoder task queue when a new input audio frame is ready
   // for encoding.
@@ -296,8 +319,25 @@ class ChannelSend
   bool encoder_queue_is_active_ RTC_GUARDED_BY(encoder_queue_lock_) = false;
   rtc::TaskQueue* encoder_queue_ = nullptr;
 
+  MediaTransportInterface* const media_transport_;
+  int media_transport_sequence_number_ RTC_GUARDED_BY(encoder_queue_) = 0;
+
+  rtc::CriticalSection media_transport_lock_;
+  // Currently set by SetLocalSSRC.
+  uint64_t media_transport_channel_id_ RTC_GUARDED_BY(&media_transport_lock_) =
+      0;
+  // Cache payload type and sampling frequency from most recent call to
+  // SetEncoder. Needed to set MediaTransportEncodedAudioFrame metadata, and
+  // invalidate on encoder change.
+  int media_transport_payload_type_ RTC_GUARDED_BY(&media_transport_lock_);
+  int media_transport_sampling_frequency_
+      RTC_GUARDED_BY(&media_transport_lock_);
+
   // E2EE Audio Frame Encryption
-  FrameEncryptorInterface* frame_encryptor_ = nullptr;
+  rtc::scoped_refptr<FrameEncryptorInterface> frame_encryptor_;
+  // E2EE Frame Encryption Options
+  webrtc::CryptoOptions crypto_options_;
+  int configured_bitrate_bps_ = 0;
 };
 
 }  // namespace voe

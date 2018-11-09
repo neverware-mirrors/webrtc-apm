@@ -11,6 +11,9 @@
 #ifndef MODULES_AUDIO_PROCESSING_AGC2_ADAPTIVE_MODE_LEVEL_ESTIMATOR_H_
 #define MODULES_AUDIO_PROCESSING_AGC2_ADAPTIVE_MODE_LEVEL_ESTIMATOR_H_
 
+#include <stddef.h>
+
+#include "modules/audio_processing/agc2/agc2_common.h"  // kFullBufferSizeMs...
 #include "modules/audio_processing/agc2/saturation_protector.h"
 #include "modules/audio_processing/agc2/vad_with_level.h"
 
@@ -20,6 +23,8 @@ class ApmDataDumper;
 class AdaptiveModeLevelEstimator {
  public:
   explicit AdaptiveModeLevelEstimator(ApmDataDumper* apm_data_dumper);
+  AdaptiveModeLevelEstimator(ApmDataDumper* apm_data_dumper,
+                             float extra_saturation_margin_db);
   void UpdateEstimation(const VadWithLevel::LevelAndProbability& vad_data);
   float LatestLevelEstimate() const;
   void Reset();

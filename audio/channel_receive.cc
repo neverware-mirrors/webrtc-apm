@@ -26,6 +26,7 @@
 #include "modules/audio_device/include/audio_device.h"
 #include "modules/pacing/packet_router.h"
 #include "modules/rtp_rtcp/include/receive_statistics.h"
+#include "modules/rtp_rtcp/source/rtp_header_extensions.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "modules/utility/include/process_thread.h"
 #include "rtc_base/checks.h"
@@ -50,12 +51,47 @@ constexpr int64_t kMinRetransmissionWindowMs = 30;
 constexpr int kVoiceEngineMinMinPlayoutDelayMs = 0;
 constexpr int kVoiceEngineMaxMinPlayoutDelayMs = 10000;
 
+webrtc::FrameType WebrtcFrameTypeForMediaTransportFrameType(
+    MediaTransportEncodedAudioFrame::FrameType frame_type) {
+  switch (frame_type) {
+    case MediaTransportEncodedAudioFrame::FrameType::kSpeech:
+      return kAudioFrameSpeech;
+      break;
+
+    case MediaTransportEncodedAudioFrame::FrameType::
+        kDiscountinuousTransmission:
+      return kAudioFrameCN;
+      break;
+  }
+}
+
+WebRtcRTPHeader CreateWebrtcRTPHeaderForMediaTransportFrame(
+    const MediaTransportEncodedAudioFrame& frame,
+    uint64_t channel_id) {
+  webrtc::WebRtcRTPHeader webrtc_header = {};
+  webrtc_header.header.payloadType = frame.payload_type();
+  webrtc_header.header.payload_type_frequency = frame.sampling_rate_hz();
+  webrtc_header.header.timestamp = frame.starting_sample_index();
+  webrtc_header.header.sequenceNumber = frame.sequence_number();
+
+  webrtc_header.frameType =
+      WebrtcFrameTypeForMediaTransportFrameType(frame.frame_type());
+
+  webrtc_header.header.ssrc = static_cast<uint32_t>(channel_id);
+
+  // The rest are initialized by the RTPHeader constructor.
+  return webrtc_header;
+}
+
 }  // namespace
 
 int32_t ChannelReceive::OnReceivedPayloadData(
     const uint8_t* payloadData,
     size_t payloadSize,
     const WebRtcRTPHeader* rtpHeader) {
+  // We should not be receiving any RTP packets if media_transport is set.
+  RTC_CHECK(!media_transport_);
+
   if (!channel_state_.Get().playing) {
     // Avoid inserting into NetEQ when we are not playing. Count the
     // packet as discarded.
@@ -80,6 +116,27 @@ int32_t ChannelReceive::OnReceivedPayloadData(
     ResendPackets(&(nack_list[0]), static_cast<int>(nack_list.size()));
   }
   return 0;
+}
+
+// MediaTransportAudioSinkInterface override.
+void ChannelReceive::OnData(uint64_t channel_id,
+                            MediaTransportEncodedAudioFrame frame) {
+  RTC_CHECK(media_transport_);
+
+  if (!channel_state_.Get().playing) {
+    // Avoid inserting into NetEQ when we are not playing. Count the
+    // packet as discarded.
+    return;
+  }
+
+  // Send encoded audio frame to Decoder / NetEq.
+  if (audio_coding_->IncomingPacket(
+          frame.encoded_data().data(), frame.encoded_data().size(),
+          CreateWebrtcRTPHeaderForMediaTransportFrame(frame, channel_id)) !=
+      0) {
+    RTC_DLOG(LS_ERROR) << "ChannelReceive::OnData: unable to "
+                          "push data to the ACM";
+  }
 }
 
 AudioMixer::Source::AudioFrameInfo ChannelReceive::GetAudioFrameWithInfo(
@@ -199,6 +256,7 @@ int ChannelReceive::PreferredSampleRate() const {
 ChannelReceive::ChannelReceive(
     ProcessThread* module_process_thread,
     AudioDeviceModule* audio_device_module,
+    MediaTransportInterface* media_transport,
     Transport* rtcp_send_transport,
     RtcEventLog* rtc_event_log,
     uint32_t remote_ssrc,
@@ -206,7 +264,8 @@ ChannelReceive::ChannelReceive(
     bool jitter_buffer_fast_playout,
     rtc::scoped_refptr<AudioDecoderFactory> decoder_factory,
     absl::optional<AudioCodecPairId> codec_pair_id,
-    FrameDecryptorInterface* frame_decryptor)
+    rtc::scoped_refptr<FrameDecryptorInterface> frame_decryptor,
+    const webrtc::CryptoOptions& crypto_options)
     : event_log_(rtc_event_log),
       rtp_receive_statistics_(
           ReceiveStatistics::Create(Clock::GetRealTimeClock())),
@@ -222,7 +281,9 @@ ChannelReceive::ChannelReceive(
       _audioDeviceModulePtr(audio_device_module),
       _outputGain(1.0f),
       associated_send_channel_(nullptr),
-      frame_decryptor_(frame_decryptor) {
+      media_transport_(media_transport),
+      frame_decryptor_(frame_decryptor),
+      crypto_options_(crypto_options) {
   RTC_DCHECK(module_process_thread);
   RTC_DCHECK(audio_device_module);
   AudioCodingModule::Config acm_config;
@@ -238,9 +299,7 @@ ChannelReceive::ChannelReceive(
   rtp_receive_statistics_->EnableRetransmitDetection(remote_ssrc_, true);
   RtpRtcp::Configuration configuration;
   configuration.audio = true;
-  // TODO(nisse): Also set receiver_only = true, but that seems to break RTT
-  // estimation, resulting in test failures for
-  // PeerConnectionIntegrationTest.GetCaptureStartNtpTimeWithOldStatsApi
+  configuration.receiver_only = true;
   configuration.outgoing_transport = rtcp_send_transport;
   configuration.receive_statistics = rtp_receive_statistics_.get();
 
@@ -276,10 +335,19 @@ void ChannelReceive::Init() {
   // be transmitted since the Transport object will then be invalid.
   // RTCP is enabled by default.
   _rtpRtcpModule->SetRTCPStatus(RtcpMode::kCompound);
+
+  if (media_transport_) {
+    media_transport_->SetReceiveAudioSink(this);
+  }
 }
 
 void ChannelReceive::Terminate() {
   RTC_DCHECK(construction_thread_.CalledOnValidThread());
+
+  if (media_transport_) {
+    media_transport_->SetReceiveAudioSink(nullptr);
+  }
+
   // Must be called on the same thread as Init().
   rtp_receive_statistics_->RegisterRtcpStatisticsCallback(NULL);
 
@@ -369,7 +437,9 @@ void ChannelReceive::OnRtpPacket(const RtpPacketReceived& packet) {
     if (has_audio_level)
       last_received_rtp_audio_level_ = audio_level;
     std::vector<uint32_t> csrcs = packet.Csrcs();
-    contributing_sources_.Update(now_ms, csrcs);
+    contributing_sources_.Update(
+        now_ms, csrcs,
+        has_audio_level ? absl::optional<uint8_t>(audio_level) : absl::nullopt);
   }
 
   // Store playout timestamp for the received RTP packet
@@ -429,6 +499,10 @@ bool ChannelReceive::ReceivePacket(const uint8_t* packet,
     // Update the final payload.
     payload = decrypted_audio_payload.data();
     payload_data_length = decrypted_audio_payload.size();
+  } else if (crypto_options_.sframe.require_frame_encryption) {
+    RTC_DLOG(LS_ERROR)
+        << "FrameDecryptor required but not set, dropping packet";
+    payload_data_length = 0;
   }
 
   if (payload_data_length == 0) {
@@ -705,6 +779,8 @@ int64_t ChannelReceive::GetRTT() const {
   int64_t avg_rtt = 0;
   int64_t max_rtt = 0;
   int64_t min_rtt = 0;
+  // TODO(nisse): This method computes RTT based on sender reports, even though
+  // a receive stream is not supposed to do that.
   if (_rtpRtcpModule->RTT(remote_ssrc_, &rtt, &avg_rtt, &min_rtt, &max_rtt) !=
       0) {
     return 0;

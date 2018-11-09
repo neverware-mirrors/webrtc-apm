@@ -9,31 +9,21 @@
  */
 #include "modules/audio_processing/aec3/echo_path_delay_estimator.h"
 
-#include <algorithm>
 #include <array>
 
 #include "api/audio/echo_canceller3_config.h"
 #include "modules/audio_processing/aec3/aec3_common.h"
+#include "modules/audio_processing/aec3/downsampled_render_buffer.h"
 #include "modules/audio_processing/logging/apm_data_dumper.h"
 #include "rtc_base/checks.h"
-#include "system_wrappers/include/field_trial.h"
 
 namespace webrtc {
-namespace {
-size_t GetDownSamplingFactor(const EchoCanceller3Config& config) {
-  // Do not use down sampling factor 8 if kill switch is triggered.
-  return (config.delay.down_sampling_factor == 8 &&
-          field_trial::IsEnabled("WebRTC-Aec3DownSamplingFactor8KillSwitch"))
-             ? 4
-             : config.delay.down_sampling_factor;
-}
-}  // namespace
 
 EchoPathDelayEstimator::EchoPathDelayEstimator(
     ApmDataDumper* data_dumper,
     const EchoCanceller3Config& config)
     : data_dumper_(data_dumper),
-      down_sampling_factor_(GetDownSamplingFactor(config)),
+      down_sampling_factor_(config.delay.down_sampling_factor),
       sub_block_size_(down_sampling_factor_ != 0
                           ? kBlockSize / down_sampling_factor_
                           : kBlockSize),
@@ -45,7 +35,7 @@ EchoPathDelayEstimator::EchoPathDelayEstimator(
           kMatchedFilterWindowSizeSubBlocks,
           config.delay.num_filters,
           kMatchedFilterAlignmentShiftSizeSubBlocks,
-          GetDownSamplingFactor(config) == 8
+          config.delay.down_sampling_factor == 8
               ? config.render_levels.poor_excitation_render_limit_ds8
               : config.render_levels.poor_excitation_render_limit,
           config.delay.delay_estimate_smoothing,

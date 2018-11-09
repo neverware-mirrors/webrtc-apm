@@ -19,6 +19,8 @@
 #include "api/audio/audio_mixer.h"
 #include "api/call/audio_sink.h"
 #include "api/call/transport.h"
+#include "api/crypto/cryptooptions.h"
+#include "api/media_transport_interface.h"
 #include "api/rtpreceiverinterface.h"
 #include "audio/audio_level.h"
 #include "call/syncable.h"
@@ -102,11 +104,12 @@ class ChannelReceiveState {
   State state_;
 };
 
-class ChannelReceive : public RtpData {
+class ChannelReceive : public RtpData, public MediaTransportAudioSinkInterface {
  public:
   // Used for receive streams.
   ChannelReceive(ProcessThread* module_process_thread,
                  AudioDeviceModule* audio_device_module,
+                 MediaTransportInterface* media_transport,
                  Transport* rtcp_send_transport,
                  RtcEventLog* rtc_event_log,
                  uint32_t remote_ssrc,
@@ -114,7 +117,8 @@ class ChannelReceive : public RtpData {
                  bool jitter_buffer_fast_playout,
                  rtc::scoped_refptr<AudioDecoderFactory> decoder_factory,
                  absl::optional<AudioCodecPairId> codec_pair_id,
-                 FrameDecryptorInterface* frame_decryptor);
+                 rtc::scoped_refptr<FrameDecryptorInterface> frame_decryptor,
+                 const webrtc::CryptoOptions& crypto_options);
   virtual ~ChannelReceive();
 
   void SetSink(AudioSinkInterface* sink);
@@ -162,6 +166,10 @@ class ChannelReceive : public RtpData {
 
   int GetRTPStatistics(CallReceiveStatistics& stats);  // NOLINT
   void SetNACKStatus(bool enable, int maxNumberOfPackets);
+
+  // MediaTransportAudioSinkInterface override;
+  void OnData(uint64_t channel_id,
+              MediaTransportEncodedAudioFrame frame) override;
 
   // From RtpData in the RTP/RTCP module
   int32_t OnReceivedPayloadData(const uint8_t* payloadData,
@@ -257,8 +265,11 @@ class ChannelReceive : public RtpData {
 
   rtc::ThreadChecker construction_thread_;
 
+  MediaTransportInterface* const media_transport_;
+
   // E2EE Audio Frame Decryption
-  FrameDecryptorInterface* frame_decryptor_ = nullptr;
+  rtc::scoped_refptr<FrameDecryptorInterface> frame_decryptor_;
+  webrtc::CryptoOptions crypto_options_;
 };
 
 }  // namespace voe

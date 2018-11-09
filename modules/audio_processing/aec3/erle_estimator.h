@@ -11,6 +11,7 @@
 #ifndef MODULES_AUDIO_PROCESSING_AEC3_ERLE_ESTIMATOR_H_
 #define MODULES_AUDIO_PROCESSING_AEC3_ERLE_ESTIMATOR_H_
 
+#include <stddef.h>
 #include <array>
 #include <memory>
 
@@ -37,7 +38,7 @@ class ErleEstimator {
   void Reset(bool delay_change);
 
   // Updates the ERLE estimates.
-  void Update(rtc::ArrayView<const float> render_spectrum,
+  void Update(rtc::ArrayView<const float> reverb_render_spectrum,
               rtc::ArrayView<const float> capture_spectrum,
               rtc::ArrayView<const float> subtractor_spectrum,
               bool converged_filter,

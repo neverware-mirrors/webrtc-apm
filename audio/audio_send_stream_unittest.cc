@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "absl/memory/memory.h"
+#include "api/test/mock_frame_encryptor.h"
 #include "api/units/time_delta.h"
 #include "audio/audio_send_stream.h"
 #include "audio/audio_state.h"
@@ -128,7 +129,7 @@ rtc::scoped_refptr<MockAudioEncoderFactory> SetupEncoderFactoryMock() {
 
 struct ConfigHelper {
   ConfigHelper(bool audio_bwe_enabled, bool expect_set_encoder_call)
-      : stream_config_(nullptr),
+      : stream_config_(/*send_transport=*/nullptr, /*media_transport=*/nullptr),
         audio_processing_(new rtc::RefCountedObject<MockAudioProcessing>()),
         bitrate_allocator_(&limit_observer_),
         worker_queue_("ConfigHelper_worker_queue"),
@@ -196,7 +197,8 @@ struct ConfigHelper {
     EXPECT_CALL(*channel_proxy_, SetLocalSSRC(kSsrc)).Times(1);
     EXPECT_CALL(*channel_proxy_, SetRTCP_CNAME(StrEq(kCName))).Times(1);
     EXPECT_CALL(*channel_proxy_, SetNACKStatus(true, 10)).Times(1);
-    EXPECT_CALL(*channel_proxy_, SetFrameEncryptor(nullptr)).Times(1);
+    EXPECT_CALL(*channel_proxy_, SetFrameEncryptor(_)).Times(1);
+    EXPECT_CALL(*channel_proxy_, SetExtmapAllowMixed(false)).Times(1);
     EXPECT_CALL(*channel_proxy_,
                 SetSendAudioLevelIndicationStatus(true, kAudioLevelId))
         .Times(1);
@@ -278,6 +280,7 @@ struct ConfigHelper {
         .WillRepeatedly(Return(report_blocks));
     EXPECT_CALL(*channel_proxy_, GetANAStatistics())
         .WillRepeatedly(Return(ANAStats()));
+    EXPECT_CALL(*channel_proxy_, GetBitrate()).WillRepeatedly(Return(0));
 
     audio_processing_stats_.echo_return_loss = kEchoReturnLoss;
     audio_processing_stats_.echo_return_loss_enhancement =
@@ -316,7 +319,8 @@ struct ConfigHelper {
 }  // namespace
 
 TEST(AudioSendStreamTest, ConfigToString) {
-  AudioSendStream::Config config(nullptr);
+  AudioSendStream::Config config(/*send_transport=*/nullptr,
+                                 /*media_transport=*/nullptr);
   config.rtp.ssrc = kSsrc;
   config.rtp.c_name = kCName;
   config.min_bitrate_bps = 12000;
@@ -327,12 +331,14 @@ TEST(AudioSendStreamTest, ConfigToString) {
   config.send_codec_spec->transport_cc_enabled = false;
   config.send_codec_spec->cng_payload_type = 42;
   config.encoder_factory = MockAudioEncoderFactory::CreateUnusedFactory();
+  config.rtp.extmap_allow_mixed = true;
   config.rtp.extensions.push_back(
       RtpExtension(RtpExtension::kAudioLevelUri, kAudioLevelId));
   EXPECT_EQ(
-      "{rtp: {ssrc: 1234, extensions: [{uri: "
+      "{rtp: {ssrc: 1234, extmap-allow-mixed: true, extensions: [{uri: "
       "urn:ietf:params:rtp-hdrext:ssrc-audio-level, id: 2}], nack: "
       "{rtp_history_ms: 0}, c_name: foo_name}, send_transport: null, "
+      "media_transport: null, "
       "min_bitrate_bps: 12000, max_bitrate_bps: 34000, "
       "send_codec_spec: {nack_enabled: true, transport_cc_enabled: false, "
       "cng_payload_type: 42, payload_type: 103, "
@@ -470,15 +476,24 @@ TEST(AudioSendStreamTest, DoesNotPassHigherBitrateThanMaxBitrate) {
   auto send_stream = helper.CreateAudioSendStream();
   EXPECT_CALL(*helper.channel_proxy(),
               SetBitrate(helper.config().max_bitrate_bps, _));
-  send_stream->OnBitrateUpdated(helper.config().max_bitrate_bps + 5000, 0.0, 50,
-                                6000);
+  BitrateAllocationUpdate update;
+  update.bitrate_bps = helper.config().max_bitrate_bps + 5000;
+  update.fraction_loss = 0;
+  update.rtt = 50;
+  update.bwe_period_ms = 6000;
+  send_stream->OnBitrateUpdated(update);
 }
 
 TEST(AudioSendStreamTest, ProbingIntervalOnBitrateUpdated) {
   ConfigHelper helper(false, true);
   auto send_stream = helper.CreateAudioSendStream();
   EXPECT_CALL(*helper.channel_proxy(), SetBitrate(_, 5000));
-  send_stream->OnBitrateUpdated(50000, 0.0, 50, 5000);
+  BitrateAllocationUpdate update;
+  update.bitrate_bps = helper.config().max_bitrate_bps + 5000;
+  update.fraction_loss = 0;
+  update.rtt = 50;
+  update.bwe_period_ms = 5000;
+  send_stream->OnBitrateUpdated(update);
 }
 
 // Test that AudioSendStream doesn't recreate the encoder unnecessarily.
@@ -515,6 +530,32 @@ TEST(AudioSendStreamTest, ReconfigureTransportCcResetsFirst) {
                                              helper.transport(), Ne(nullptr)))
         .Times(1);
   }
+  send_stream->Reconfigure(new_config);
+}
+
+// Validates that reconfiguring the AudioSendStream with a Frame encryptor
+// correctly reconfigures on the object without crashing.
+TEST(AudioSendStreamTest, ReconfigureWithFrameEncryptor) {
+  ConfigHelper helper(false, true);
+  auto send_stream = helper.CreateAudioSendStream();
+  auto new_config = helper.config();
+
+  rtc::scoped_refptr<FrameEncryptorInterface> mock_frame_encryptor_0(
+      new rtc::RefCountedObject<MockFrameEncryptor>());
+  new_config.frame_encryptor = mock_frame_encryptor_0;
+  EXPECT_CALL(*helper.channel_proxy(), SetFrameEncryptor(Ne(nullptr))).Times(1);
+  send_stream->Reconfigure(new_config);
+
+  // Not updating the frame encryptor shouldn't force it to reconfigure.
+  EXPECT_CALL(*helper.channel_proxy(), SetFrameEncryptor(_)).Times(0);
+  send_stream->Reconfigure(new_config);
+
+  // Updating frame encryptor to a new object should force a call to the proxy.
+  rtc::scoped_refptr<FrameEncryptorInterface> mock_frame_encryptor_1(
+      new rtc::RefCountedObject<MockFrameEncryptor>());
+  new_config.frame_encryptor = mock_frame_encryptor_1;
+  new_config.crypto_options.sframe.require_frame_encryption = true;
+  EXPECT_CALL(*helper.channel_proxy(), SetFrameEncryptor(Ne(nullptr))).Times(1);
   send_stream->Reconfigure(new_config);
 }
 

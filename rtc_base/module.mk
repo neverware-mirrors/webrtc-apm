@@ -17,7 +17,6 @@ rtc_base_approved_generic_CXX_OBJECTS = \
 	rtc_base/flags.o \
 	rtc_base/location.o \
 	rtc_base/numerics/histogram_percentile_counter.o \
-	rtc_base/pathutils.o \
 	rtc_base/platform_file.o \
 	rtc_base/platform_thread.o \
 	rtc_base/platform_thread_types.o \

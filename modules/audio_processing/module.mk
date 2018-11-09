@@ -122,6 +122,7 @@ aec3_CXX_OBJECTS = \
 	modules/audio_processing/aec3/render_delay_controller.o \
 	modules/audio_processing/aec3/render_delay_controller2.o \
 	modules/audio_processing/aec3/render_delay_controller_metrics.o \
+	modules/audio_processing/aec3/render_reverb_model.o \
 	modules/audio_processing/aec3/render_signal_analyzer.o \
 	modules/audio_processing/aec3/residual_echo_estimator.o \
 	modules/audio_processing/aec3/reverb_decay_estimator.o \
@@ -157,11 +158,10 @@ agc2_CXX_OBJECTS = \
 	modules/audio_processing/agc2/compute_interpolated_gain_curve.o \
 	modules/audio_processing/agc2/down_sampler.o \
 	modules/audio_processing/agc2/fixed_digital_level_estimator.o \
-	modules/audio_processing/agc2/fixed_gain_controller.o \
 	modules/audio_processing/agc2/gain_applier.o \
-	modules/audio_processing/agc2/gain_curve_applier.o \
 	modules/audio_processing/agc2/interpolated_gain_curve.o \
 	modules/audio_processing/agc2/limiter.o \
+	modules/audio_processing/agc2/limiter_db_gain_curve.o \
 	modules/audio_processing/agc2/noise_level_estimator.o \
 	modules/audio_processing/agc2/noise_spectrum_estimator.o \
 	modules/audio_processing/agc2/saturation_protector.o \

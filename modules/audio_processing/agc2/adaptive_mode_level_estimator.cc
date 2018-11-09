@@ -12,6 +12,7 @@
 
 #include "modules/audio_processing/agc2/agc2_common.h"
 #include "modules/audio_processing/logging/apm_data_dumper.h"
+#include "rtc_base/checks.h"
 #include "rtc_base/numerics/safe_minmax.h"
 
 namespace webrtc {
@@ -19,6 +20,12 @@ namespace webrtc {
 AdaptiveModeLevelEstimator::AdaptiveModeLevelEstimator(
     ApmDataDumper* apm_data_dumper)
     : saturation_protector_(apm_data_dumper),
+      apm_data_dumper_(apm_data_dumper) {}
+
+AdaptiveModeLevelEstimator::AdaptiveModeLevelEstimator(
+    ApmDataDumper* apm_data_dumper,
+    float extra_saturation_margin_db)
+    : saturation_protector_(apm_data_dumper, extra_saturation_margin_db),
       apm_data_dumper_(apm_data_dumper) {}
 
 void AdaptiveModeLevelEstimator::UpdateEstimation(

@@ -58,6 +58,7 @@ class ChannelSendProxy {
   virtual void SetRTCPStatus(bool enable);
   virtual void SetMid(const std::string& mid, int extension_id);
   virtual void SetRTCP_CNAME(const std::string& c_name);
+  virtual void SetExtmapAllowMixed(bool extmap_allow_mixed);
   virtual void SetSendAudioLevelIndicationStatus(bool enable, int id);
   virtual void EnableSendTransportSequenceNumber(int id);
   virtual void RegisterSenderCongestionControlObjects(
@@ -70,6 +71,7 @@ class ChannelSendProxy {
                                                 int payload_frequency);
   virtual bool SendTelephoneEventOutband(int event, int duration_ms);
   virtual void SetBitrate(int bitrate_bps, int64_t probing_interval_ms);
+  virtual int GetBitrate() const;
   virtual void SetInputMute(bool muted);
 
   virtual void ProcessAndEncodeAudio(std::unique_ptr<AudioFrame> audio_frame);
@@ -86,7 +88,8 @@ class ChannelSendProxy {
   virtual ChannelSend* GetChannel() const;
 
   // E2EE Custom Audio Frame Encryption (Optional)
-  virtual void SetFrameEncryptor(FrameEncryptorInterface* frame_encryptor);
+  virtual void SetFrameEncryptor(
+      rtc::scoped_refptr<FrameEncryptorInterface> frame_encryptor);
 
  private:
   // Thread checkers document and lock usage of some methods on voe::Channel to

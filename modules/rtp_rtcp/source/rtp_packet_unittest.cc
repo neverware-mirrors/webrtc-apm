@@ -226,8 +226,7 @@ TEST(RtpPacketTest, CreateWith2Extensions) {
 }
 
 TEST(RtpPacketTest, CreateWithTwoByteHeaderExtensionFirst) {
-  RtpPacketToSend::ExtensionManager extensions;
-  extensions.SetMixedOneTwoByteHeaderSupported(true);
+  RtpPacketToSend::ExtensionManager extensions(true);
   extensions.Register(kRtpExtensionTransmissionTimeOffset,
                       kTransmissionOffsetExtensionId);
   extensions.Register(kRtpExtensionAudioLevel, kAudioLevelExtensionId);
@@ -248,8 +247,7 @@ TEST(RtpPacketTest, CreateWithTwoByteHeaderExtensionFirst) {
 
 TEST(RtpPacketTest, CreateWithTwoByteHeaderExtensionLast) {
   // This test will trigger RtpPacket::PromoteToTwoByteHeaderExtension().
-  RtpPacketToSend::ExtensionManager extensions;
-  extensions.SetMixedOneTwoByteHeaderSupported(true);
+  RtpPacketToSend::ExtensionManager extensions(true);
   extensions.Register(kRtpExtensionTransmissionTimeOffset,
                       kTransmissionOffsetExtensionId);
   extensions.Register(kRtpExtensionAudioLevel, kAudioLevelExtensionId);
@@ -466,6 +464,23 @@ TEST(RtpPacketTest, ParseWithExtension) {
   EXPECT_EQ(kTimeOffset, time_offset);
   EXPECT_EQ(0u, packet.payload_size());
   EXPECT_EQ(0u, packet.padding_size());
+}
+
+TEST(RtpPacketTest, GetExtensionWithoutParametersReturnsOptionalValue) {
+  RtpPacket::ExtensionManager extensions;
+  extensions.Register<TransmissionOffset>(kTransmissionOffsetExtensionId);
+  extensions.Register<RtpStreamId>(kRtpStreamIdExtensionId);
+
+  RtpPacketReceived packet(&extensions);
+  EXPECT_TRUE(packet.Parse(kPacketWithTO, sizeof(kPacketWithTO)));
+
+  auto time_offset = packet.GetExtension<TransmissionOffset>();
+  static_assert(
+      std::is_same<decltype(time_offset),
+                   absl::optional<TransmissionOffset::value_type>>::value,
+      "");
+  EXPECT_EQ(time_offset, kTimeOffset);
+  EXPECT_FALSE(packet.GetExtension<RtpStreamId>().has_value());
 }
 
 TEST(RtpPacketTest, GetRawExtensionWhenPresent) {

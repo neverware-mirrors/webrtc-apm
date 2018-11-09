@@ -77,6 +77,7 @@
 #include "api/audio_codecs/audio_encoder_factory.h"
 #include "api/audio_options.h"
 #include "api/call/callfactoryinterface.h"
+#include "api/crypto/cryptooptions.h"
 #include "api/datachannelinterface.h"
 #include "api/fec_controller.h"
 #include "api/jsep.h"
@@ -112,6 +113,7 @@
 #include "rtc_base/socketaddress.h"
 #include "rtc_base/sslcertificate.h"
 #include "rtc_base/sslstreamadapter.h"
+#include "rtc_base/system/rtc_export.h"
 
 namespace rtc {
 class SSLIdentity;
@@ -158,7 +160,7 @@ enum class SdpSemantics { kPlanB, kUnifiedPlan };
 
 class PeerConnectionInterface : public rtc::RefCountInterface {
  public:
-  // See https://w3c.github.io/webrtc-pc/#state-definitions
+  // See https://w3c.github.io/webrtc-pc/#dom-rtcsignalingstate
   enum SignalingState {
     kStable,
     kHaveLocalOffer,
@@ -168,12 +170,24 @@ class PeerConnectionInterface : public rtc::RefCountInterface {
     kClosed,
   };
 
+  // See https://w3c.github.io/webrtc-pc/#dom-rtcicegatheringstate
   enum IceGatheringState {
     kIceGatheringNew,
     kIceGatheringGathering,
     kIceGatheringComplete
   };
 
+  // See https://w3c.github.io/webrtc-pc/#dom-rtcpeerconnectionstate
+  enum class PeerConnectionState {
+    kNew,
+    kConnecting,
+    kConnected,
+    kDisconnected,
+    kFailed,
+    kClosed,
+  };
+
+  // See https://w3c.github.io/webrtc-pc/#dom-rtciceconnectionstate
   enum IceConnectionState {
     kIceConnectionNew,
     kIceConnectionChecking,
@@ -280,7 +294,7 @@ class PeerConnectionInterface : public rtc::RefCountInterface {
   // organization of the implementation, which isn't stable. So we
   // need getters and setters at least for fields which applications
   // are interested in.
-  struct RTCConfiguration {
+  struct RTC_EXPORT RTCConfiguration {
     // This struct is subject to reorganization, both for naming
     // consistency, and to group settings to match where they are used
     // in the implementation. To do that, we need getter and setter
@@ -392,6 +406,7 @@ class PeerConnectionInterface : public rtc::RefCountInterface {
     // Use new combined audio/video bandwidth estimation?
     absl::optional<bool> combined_audio_video_bwe;
 
+    // TODO(bugs.webrtc.org/9891) - Move to crypto_options
     // Can be used to disable DTLS-SRTP. This should never be done, but can be
     // useful for testing purposes, for example in setting up a loopback call
     // with a single PeerConnection.
@@ -554,6 +569,7 @@ class PeerConnectionInterface : public rtc::RefCountInterface {
     // For all other users, specify kUnifiedPlan.
     SdpSemantics sdp_semantics = SdpSemantics::kPlanB;
 
+    // TODO(bugs.webrtc.org/9891) - Move to crypto_options or remove.
     // Actively reset the SRTP parameters whenever the DTLS transports
     // underneath are reset for every offer/answer negotiation.
     // This is only intended to be a workaround for crbug.com/835958
@@ -566,6 +582,20 @@ class PeerConnectionInterface : public rtc::RefCountInterface {
     // It's invalid to set it to |true| if the MediaTransportFactory wasn't
     // provided.
     bool use_media_transport = false;
+
+    // If MediaTransportFactory is provided in PeerConnectionFactory, this flag
+    // informs PeerConnection that it should use the MediaTransportInterface for
+    // data channels.  It's invalid to set it to |true| if the
+    // MediaTransportFactory wasn't provided.  Data channels over media
+    // transport are not compatible with RTP or SCTP data channels.  Setting
+    // both |use_media_transport_for_data_channels| and
+    // |enable_rtp_data_channel| is invalid.
+    bool use_media_transport_for_data_channels = false;
+
+    // Defines advanced optional cryptographic settings related to SRTP and
+    // frame encryption for native WebRTC. Setting this will overwrite any
+    // settings set in PeerConnectionFactory (which is deprecated).
+    absl::optional<CryptoOptions> crypto_options;
 
     //
     // Don't forget to update operator== if adding something.
@@ -976,10 +1006,12 @@ class PeerConnectionInterface : public rtc::RefCountInterface {
   virtual SignalingState signaling_state() = 0;
 
   // Returns the aggregate state of all ICE *and* DTLS transports.
-  // TODO(deadbeef): Implement "PeerConnectionState" according to the standard,
-  // to aggregate ICE+DTLS state, and change the scope of IceConnectionState to
-  // be just the ICE layer. See: crbug.com/webrtc/6145
+  // TODO(jonasolsson): Replace with standardized_ice_connection_state once it
+  // is ready, see crbug.com/webrtc/6145
   virtual IceConnectionState ice_connection_state() = 0;
+
+  // Returns the aggregated state of all ICE and DTLS transports.
+  virtual PeerConnectionState peer_connection_state();
 
   virtual IceGatheringState ice_gathering_state() = 0;
 
@@ -1048,6 +1080,10 @@ class PeerConnectionObserver {
   // state, so it may be "failed" if DTLS fails while ICE succeeds.
   virtual void OnIceConnectionChange(
       PeerConnectionInterface::IceConnectionState new_state) = 0;
+
+  // Called any time the PeerConnectionState changes.
+  virtual void OnConnectionChange(
+      PeerConnectionInterface::PeerConnectionState new_state) {}
 
   // Called any time the IceGatheringState changes.
   virtual void OnIceGatheringChange(
@@ -1180,7 +1216,7 @@ class PeerConnectionFactoryInterface : public rtc::RefCountInterface {
  public:
   class Options {
    public:
-    Options() : crypto_options(rtc::CryptoOptions::NoGcm()) {}
+    Options() {}
 
     // If set to true, created PeerConnections won't enforce any SRTP
     // requirement, allowing unsecured media. Should only be used for
@@ -1209,7 +1245,7 @@ class PeerConnectionFactoryInterface : public rtc::RefCountInterface {
     rtc::SSLProtocolVersion ssl_max_version = rtc::SSL_PROTOCOL_DTLS_12;
 
     // Sets crypto related options, e.g. enabled cipher suites.
-    rtc::CryptoOptions crypto_options;
+    CryptoOptions crypto_options = CryptoOptions::NoGcm();
   };
 
   // Set the options to be used for subsequently created PeerConnections.
@@ -1323,7 +1359,8 @@ class PeerConnectionFactoryInterface : public rtc::RefCountInterface {
 // rtc::Thread::Current()->Run(), or call
 // rtc::Thread::Current()->ProcessMessages() within the application's own
 // message loop.
-rtc::scoped_refptr<PeerConnectionFactoryInterface> CreatePeerConnectionFactory(
+RTC_EXPORT rtc::scoped_refptr<PeerConnectionFactoryInterface>
+CreatePeerConnectionFactory(
     rtc::scoped_refptr<AudioEncoderFactory> audio_encoder_factory,
     rtc::scoped_refptr<AudioDecoderFactory> audio_decoder_factory);
 
@@ -1337,7 +1374,8 @@ rtc::scoped_refptr<PeerConnectionFactoryInterface> CreatePeerConnectionFactory(
 // returned factory.
 // TODO(deadbeef): Use rtc::scoped_refptr<> and std::unique_ptr<> to make this
 // ownership transfer and ref counting more obvious.
-rtc::scoped_refptr<PeerConnectionFactoryInterface> CreatePeerConnectionFactory(
+RTC_EXPORT rtc::scoped_refptr<PeerConnectionFactoryInterface>
+CreatePeerConnectionFactory(
     rtc::Thread* network_thread,
     rtc::Thread* worker_thread,
     rtc::Thread* signaling_thread,
@@ -1353,7 +1391,8 @@ rtc::scoped_refptr<PeerConnectionFactoryInterface> CreatePeerConnectionFactory(
 // If |audio_mixer| is null, an internal audio mixer will be created and used.
 // If |audio_processing| is null, an internal audio processing module will be
 // created and used.
-rtc::scoped_refptr<PeerConnectionFactoryInterface> CreatePeerConnectionFactory(
+RTC_EXPORT rtc::scoped_refptr<PeerConnectionFactoryInterface>
+CreatePeerConnectionFactory(
     rtc::Thread* network_thread,
     rtc::Thread* worker_thread,
     rtc::Thread* signaling_thread,
@@ -1375,7 +1414,8 @@ rtc::scoped_refptr<PeerConnectionFactoryInterface> CreatePeerConnectionFactory(
 // be created and used.
 // If |network_controller_factory| is provided, it will be used if enabled via
 // field trial.
-rtc::scoped_refptr<PeerConnectionFactoryInterface> CreatePeerConnectionFactory(
+RTC_EXPORT rtc::scoped_refptr<PeerConnectionFactoryInterface>
+CreatePeerConnectionFactory(
     rtc::Thread* network_thread,
     rtc::Thread* worker_thread,
     rtc::Thread* signaling_thread,
@@ -1396,7 +1436,8 @@ rtc::scoped_refptr<PeerConnectionFactoryInterface> CreatePeerConnectionFactory(
 // extra internal video codecs will be added.
 // When building WebRTC with rtc_use_builtin_sw_codecs = false, this is the
 // only available CreatePeerConnectionFactory overload.
-rtc::scoped_refptr<PeerConnectionFactoryInterface> CreatePeerConnectionFactory(
+RTC_EXPORT rtc::scoped_refptr<PeerConnectionFactoryInterface>
+CreatePeerConnectionFactory(
     rtc::Thread* network_thread,
     rtc::Thread* worker_thread,
     rtc::Thread* signaling_thread,
@@ -1413,7 +1454,7 @@ rtc::scoped_refptr<PeerConnectionFactoryInterface> CreatePeerConnectionFactory(
 // mixer.
 //
 // If |audio_mixer| is null, an internal audio mixer will be created and used.
-rtc::scoped_refptr<PeerConnectionFactoryInterface>
+RTC_EXPORT rtc::scoped_refptr<PeerConnectionFactoryInterface>
 CreatePeerConnectionFactoryWithAudioMixer(
     rtc::Thread* network_thread,
     rtc::Thread* worker_thread,
@@ -1427,7 +1468,7 @@ CreatePeerConnectionFactoryWithAudioMixer(
 
 // Create a new instance of PeerConnectionFactoryInterface.
 // Same thread is used as worker and network thread.
-inline rtc::scoped_refptr<PeerConnectionFactoryInterface>
+RTC_EXPORT inline rtc::scoped_refptr<PeerConnectionFactoryInterface>
 CreatePeerConnectionFactory(
     rtc::Thread* worker_and_network_thread,
     rtc::Thread* signaling_thread,

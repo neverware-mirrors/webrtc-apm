@@ -12,11 +12,9 @@
 
 #include <utility>
 
-#include "api/call/audio_sink.h"
+#include "api/crypto/frameencryptorinterface.h"
 #include "call/rtp_transport_controller_send_interface.h"
 #include "rtc_base/checks.h"
-#include "rtc_base/logging.h"
-#include "rtc_base/numerics/safe_minmax.h"
 
 namespace webrtc {
 namespace voe {
@@ -90,6 +88,11 @@ void ChannelSendProxy::SetRTCP_CNAME(const std::string& c_name) {
   RTC_DCHECK_EQ(0, error);
 }
 
+void ChannelSendProxy::SetExtmapAllowMixed(bool extmap_allow_mixed) {
+  RTC_DCHECK(worker_thread_checker_.CalledOnValidThread());
+  channel_->SetExtmapAllowMixed(extmap_allow_mixed);
+}
+
 void ChannelSendProxy::SetSendAudioLevelIndicationStatus(bool enable, int id) {
   RTC_DCHECK(worker_thread_checker_.CalledOnValidThread());
   int error = channel_->SetSendAudioLevelIndicationStatus(enable, id);
@@ -150,6 +153,10 @@ void ChannelSendProxy::SetBitrate(int bitrate_bps,
   channel_->SetBitRate(bitrate_bps, probing_interval_ms);
 }
 
+int ChannelSendProxy::GetBitrate() const {
+  return channel_->GetBitRate();
+}
+
 void ChannelSendProxy::SetInputMute(bool muted) {
   RTC_DCHECK(worker_thread_checker_.CalledOnValidThread());
   channel_->SetInputMute(muted);
@@ -198,7 +205,7 @@ ChannelSend* ChannelSendProxy::GetChannel() const {
 }
 
 void ChannelSendProxy::SetFrameEncryptor(
-    FrameEncryptorInterface* frame_encryptor) {
+    rtc::scoped_refptr<FrameEncryptorInterface> frame_encryptor) {
   RTC_DCHECK(worker_thread_checker_.CalledOnValidThread());
   channel_->SetFrameEncryptor(frame_encryptor);
 }

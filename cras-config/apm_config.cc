@@ -37,10 +37,12 @@ void apm_config_apply(dictionary *ini, webrtc::AudioProcessing *apm)
 			APM_GET_FLOAT(ini, APM_PRE_AMPLIFIER_FIXED_GAIN_FACTOR);
 	config.gain_controller2.enabled =
 			APM_GET_INT(ini, APM_GAIN_CONTROLLER2_ENABLED);
-	config.gain_controller2.fixed_gain_db =
-			APM_GET_FLOAT(ini, APM_GAIN_CONTROLLER2_FIXED_GAIN_DB);
 	config.gain_controller2.adaptive_digital_mode =
-			APM_GET_INT(ini, APM_GAIN_CONTROLLER2_ADAPTIVE_DIGITAL_MODE);
+		APM_GET_INT(ini, APM_GAIN_CONTROLLER2_ADAPTIVE_DIGITAL_MODE);
+	config.gain_controller2.extra_saturation_margin_db =
+		APM_GET_FLOAT(ini, APM_GAIN_CONTROLLER2_EXTRA_SATURATION_MARGIN_DB);
+	config.gain_controller2.fixed_gain_db =
+		APM_GET_FLOAT(ini, APM_GAIN_CONTROLLER2_FIXED_GAIN_DB);
 	apm->ApplyConfig(config);
 
 	apm->gain_control()->set_compression_gain_db(
@@ -71,10 +73,12 @@ void apm_config_dump(dictionary *ini)
 		APM_GET_FLOAT(ini, APM_PRE_AMPLIFIER_FIXED_GAIN_FACTOR));
 	syslog(LOG_ERR, "gain_controller2_enabled %u",
 		APM_GET_INT(ini, APM_GAIN_CONTROLLER2_ENABLED));
-	syslog(LOG_ERR, "gain_controller2_fixed_gain_db %f",
-		APM_GET_FLOAT(ini, APM_GAIN_CONTROLLER2_FIXED_GAIN_DB));
 	syslog(LOG_ERR, "gain_controller2_adaptive_digital_mode %d",
 		APM_GET_INT(ini, APM_GAIN_CONTROLLER2_ADAPTIVE_DIGITAL_MODE));
+	syslog(LOG_ERR, "gain_controller2_extra_saturation_margin_db %f",
+		APM_GET_FLOAT(ini, APM_GAIN_CONTROLLER2_EXTRA_SATURATION_MARGIN_DB));
+	syslog(LOG_ERR, "gain_controller2_fixed_gain_db %f",
+		APM_GET_FLOAT(ini, APM_GAIN_CONTROLLER2_FIXED_GAIN_DB));
 	syslog(LOG_ERR, "gain_control_compression_gain_db %u",
 		APM_GET_INT(ini, APM_GAIN_CONTROL_COMPRESSION_GAIN_DB));
 	syslog(LOG_ERR, "gain_control_mode %u",

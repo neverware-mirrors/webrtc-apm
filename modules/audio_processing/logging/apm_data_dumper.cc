@@ -11,7 +11,6 @@
 #include "modules/audio_processing/logging/apm_data_dumper.h"
 
 #include "rtc_base/strings/string_builder.h"
-#include "rtc_base/stringutils.h"
 
 // Check to verify that the define is properly set.
 #if !defined(WEBRTC_APM_DEBUG_DUMP) || \
@@ -47,6 +46,8 @@ ApmDataDumper::ApmDataDumper(int instance_index) {}
 ApmDataDumper::~ApmDataDumper() {}
 
 #if WEBRTC_APM_DEBUG_DUMP == 1
+bool ApmDataDumper::recording_activated_ = false;
+;
 FILE* ApmDataDumper::GetRawFile(const char* name) {
   std::string filename =
       FormFileName(name, instance_index_, recording_set_index_, ".dat");

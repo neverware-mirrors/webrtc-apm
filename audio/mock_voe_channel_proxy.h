@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 
+#include "api/test/mock_frame_encryptor.h"
 #include "audio/channel_receive_proxy.h"
 #include "audio/channel_send_proxy.h"
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
@@ -75,6 +76,7 @@ class MockChannelSendProxy : public voe::ChannelSendProxy {
   MOCK_METHOD1(SetLocalSSRC, void(uint32_t ssrc));
   MOCK_METHOD1(SetRTCP_CNAME, void(const std::string& c_name));
   MOCK_METHOD2(SetNACKStatus, void(bool enable, int max_packets));
+  MOCK_METHOD1(SetExtmapAllowMixed, void(bool extmap_allow_mixed));
   MOCK_METHOD2(SetSendAudioLevelIndicationStatus, void(bool enable, int id));
   MOCK_METHOD1(EnableSendTransportSequenceNumber, void(int id));
   MOCK_METHOD2(RegisterSenderCongestionControlObjects,
@@ -99,13 +101,15 @@ class MockChannelSendProxy : public voe::ChannelSendProxy {
                void(std::unique_ptr<AudioFrame>* audio_frame));
   MOCK_METHOD1(SetTransportOverhead, void(int transport_overhead_per_packet));
   MOCK_CONST_METHOD0(GetRtpRtcp, RtpRtcp*());
+  MOCK_CONST_METHOD0(GetBitrate, int());
   MOCK_METHOD1(OnTwccBasedUplinkPacketLossRate, void(float packet_loss_rate));
   MOCK_METHOD1(OnRecoverableUplinkPacketLossRate,
                void(float recoverable_packet_loss_rate));
   MOCK_METHOD0(StartSend, void());
   MOCK_METHOD0(StopSend, void());
-  MOCK_METHOD1(SetFrameEncryptor,
-               void(FrameEncryptorInterface* frame_encryptor));
+  MOCK_METHOD1(
+      SetFrameEncryptor,
+      void(rtc::scoped_refptr<FrameEncryptorInterface> frame_encryptor));
 };
 }  // namespace test
 }  // namespace webrtc

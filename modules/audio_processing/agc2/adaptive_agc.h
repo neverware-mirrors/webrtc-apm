@@ -11,8 +11,6 @@
 #ifndef MODULES_AUDIO_PROCESSING_AGC2_ADAPTIVE_AGC_H_
 #define MODULES_AUDIO_PROCESSING_AGC2_ADAPTIVE_AGC_H_
 
-#include <memory>
-
 #include "modules/audio_processing/agc2/adaptive_digital_gain_applier.h"
 #include "modules/audio_processing/agc2/adaptive_mode_level_estimator.h"
 #include "modules/audio_processing/agc2/noise_level_estimator.h"
@@ -25,6 +23,7 @@ class ApmDataDumper;
 class AdaptiveAgc {
  public:
   explicit AdaptiveAgc(ApmDataDumper* apm_data_dumper);
+  AdaptiveAgc(ApmDataDumper* apm_data_dumper, float extra_saturation_margin_db);
   ~AdaptiveAgc();
 
   void Process(AudioFrameView<float> float_frame, float last_audio_level);
