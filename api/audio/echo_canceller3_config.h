@@ -87,6 +87,7 @@ struct RTC_EXPORT EchoCanceller3Config {
     float max_l = 4.f;
     float max_h = 1.5f;
     bool onset_detection = true;
+    size_t num_sections = 1;
   } erle;
 
   struct EpStrength {
@@ -106,8 +107,8 @@ struct RTC_EXPORT EchoCanceller3Config {
     float audibility_threshold_lf = 10;
     float audibility_threshold_mf = 10;
     float audibility_threshold_hf = 10;
-    bool use_stationary_properties = true;
-    bool use_stationarity_properties_at_init = true;
+    bool use_stationary_properties = false;
+    bool use_stationarity_properties_at_init = false;
   } echo_audibility;
 
   struct RenderLevels {
@@ -181,8 +182,8 @@ struct RTC_EXPORT EchoCanceller3Config {
                                    0.25f);
 
     struct DominantNearendDetection {
-      float enr_threshold = 4.f;
-      float enr_exit_threshold = .1f;
+      float enr_threshold = .25f;
+      float enr_exit_threshold = 10.f;
       float snr_threshold = 30.f;
       int hold_duration = 50;
       int trigger_threshold = 12;

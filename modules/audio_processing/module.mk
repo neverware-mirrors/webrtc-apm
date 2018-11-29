@@ -90,12 +90,14 @@ aec3_CXX_OBJECTS = \
 	modules/audio_processing/aec3/aec3_common.o \
 	modules/audio_processing/aec3/aec3_fft.o \
 	modules/audio_processing/aec3/aec_state.o \
+	modules/audio_processing/aec3/api_call_jitter_metrics.o\
 	modules/audio_processing/aec3/block_delay_buffer.o \
 	modules/audio_processing/aec3/block_framer.o \
 	modules/audio_processing/aec3/block_processor.o \
 	modules/audio_processing/aec3/block_processor2.o \
 	modules/audio_processing/aec3/block_processor_metrics.o \
 	modules/audio_processing/aec3/cascaded_biquad_filter.o \
+	modules/audio_processing/aec3/clockdrift_detector.o \
 	modules/audio_processing/aec3/comfort_noise_generator.o \
 	modules/audio_processing/aec3/decimator.o \
 	modules/audio_processing/aec3/downsampled_render_buffer.o \
@@ -131,6 +133,7 @@ aec3_CXX_OBJECTS = \
 	modules/audio_processing/aec3/reverb_model_estimator.o \
 	modules/audio_processing/aec3/reverb_model_fallback.o \
 	modules/audio_processing/aec3/shadow_filter_update_gain.o \
+	modules/audio_processing/aec3/signal_dependent_erle_estimator.o \
 	modules/audio_processing/aec3/skew_estimator.o \
 	modules/audio_processing/aec3/stationarity_estimator.o \
 	modules/audio_processing/aec3/subband_erle_estimator.o \

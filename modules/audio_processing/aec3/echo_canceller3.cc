@@ -68,14 +68,12 @@ bool UseLegacyNormalSuppressorTuning() {
   return field_trial::IsEnabled("WebRTC-Aec3UseLegacyNormalSuppressorTuning");
 }
 
-bool DeactivateStationarityProperties() {
-  return field_trial::IsEnabled(
-      "WebRTC-Aec3UseStationarityPropertiesKillSwitch");
+bool ActivateStationarityProperties() {
+  return field_trial::IsEnabled("WebRTC-Aec3UseStationarityProperties");
 }
 
-bool DeactivateStationarityPropertiesAtInit() {
-  return field_trial::IsEnabled(
-      "WebRTC-Aec3UseStationarityPropertiesAtInitKillSwitch");
+bool ActivateStationarityPropertiesAtInit() {
+  return field_trial::IsEnabled("WebRTC-Aec3UseStationarityPropertiesAtInit");
 }
 
 bool EnableNewRenderBuffering() {
@@ -154,15 +152,12 @@ EchoCanceller3Config AdjustConfig(const EchoCanceller3Config& config) {
     adjusted_cfg.suppressor.dominant_nearend_detection.hold_duration = 25;
   }
 
-  // TODO(peah): Clean this up once upstream dependencies that forces this to
-  // zero are resolved.
-  adjusted_cfg.echo_audibility.use_stationary_properties = true;
-  if (DeactivateStationarityProperties()) {
-    adjusted_cfg.echo_audibility.use_stationary_properties = false;
+  if (ActivateStationarityProperties()) {
+    adjusted_cfg.echo_audibility.use_stationary_properties = true;
   }
 
-  if (DeactivateStationarityPropertiesAtInit()) {
-    adjusted_cfg.echo_audibility.use_stationarity_properties_at_init = false;
+  if (ActivateStationarityPropertiesAtInit()) {
+    adjusted_cfg.echo_audibility.use_stationarity_properties_at_init = true;
   }
 
   if (!UseEarlyDelayDetection()) {
@@ -451,6 +446,10 @@ void EchoCanceller3::ProcessCapture(AudioBuffer* capture, bool level_change) {
   data_dumper_->DumpRaw("aec3_call_order",
                         static_cast<int>(EchoCanceller3ApiCall::kCapture));
 
+  // Report capture call in the metrics and periodically update API call
+  // metrics.
+  api_call_metrics_.ReportCaptureCall();
+
   // Optionally delay the capture signal.
   if (config_.delay.fixed_capture_delay_samples > 0) {
     block_delay_buffer_.DelaySignal(capture);
@@ -505,6 +504,9 @@ void EchoCanceller3::EmptyRenderQueue() {
   bool frame_to_buffer =
       render_transfer_queue_.Remove(&render_queue_output_frame_);
   while (frame_to_buffer) {
+    // Report render call in the metrics.
+    api_call_metrics_.ReportRenderCall();
+
     BufferRenderFrameContent(&render_queue_output_frame_, 0, &render_blocker_,
                              block_processor_.get(), &block_, &sub_frame_view_);
 

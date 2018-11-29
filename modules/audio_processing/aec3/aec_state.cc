@@ -91,10 +91,7 @@ AecState::AecState(const EchoCanceller3Config& config)
       legacy_filter_quality_state_(config_),
       legacy_saturation_detector_(config_),
       erl_estimator_(2 * kNumBlocksPerSecond),
-      erle_estimator_(2 * kNumBlocksPerSecond,
-                      config_.erle.min,
-                      config_.erle.max_l,
-                      config_.erle.max_h),
+      erle_estimator_(2 * kNumBlocksPerSecond, config_),
       suppression_gain_limiter_(config_),
       filter_analyzer_(config_),
       echo_audibility_(
@@ -154,8 +151,7 @@ void AecState::Update(
   subtractor_output_analyzer_.Update(subtractor_output);
 
   // Analyze the properties of the filter.
-  filter_analyzer_.Update(adaptive_filter_impulse_response,
-                          adaptive_filter_frequency_response, render_buffer);
+  filter_analyzer_.Update(adaptive_filter_impulse_response, render_buffer);
 
   // Estimate the direct path delay of the filter.
   delay_state_.Update(filter_analyzer_, external_delay,
@@ -210,7 +206,8 @@ void AecState::Update(
   const auto& X2_input_erle =
       enable_erle_updates_during_reverb_ ? X2_reverb : X2;
 
-  erle_estimator_.Update(X2_input_erle, Y2, E2_main,
+  erle_estimator_.Update(render_buffer, adaptive_filter_frequency_response,
+                         X2_input_erle, Y2, E2_main,
                          subtractor_output_analyzer_.ConvergedFilter(),
                          config_.erle.onset_detection);
 

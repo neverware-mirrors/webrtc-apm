@@ -27,7 +27,6 @@
 #include "api/array_view.h"
 #include "api/rtcerror.h"
 #include "api/video/encoded_image.h"
-#include "common_types.h"  // NOLINT(build/include)
 #include "rtc_base/copyonwritebuffer.h"
 #include "rtc_base/networkroute.h"
 
@@ -335,15 +334,6 @@ class MediaTransportInterface {
   // Registers a video sink. Before destruction of media transport, you must
   // pass a nullptr.
   virtual void SetReceiveVideoSink(MediaTransportVideoSinkInterface* sink) = 0;
-
-  // Sets a target bitrate observer. Before media transport is destructed
-  // the observer must be unregistered (set to nullptr).
-  // A newly registered observer will be called back with the latest recorded
-  // target rate, if available.
-  // TODO(psla): This method will be removed, in favor of
-  // AddTargetTransferRateObserver.
-  virtual void SetTargetTransferRateObserver(
-      TargetTransferRateObserver* observer);
 
   // Adds a target bitrate observer. Before media transport is destructed
   // the observer must be unregistered (by calling
