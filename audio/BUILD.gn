@@ -26,19 +26,13 @@ rtc_static_library("audio") {
     "audio_transport_impl.h",
     "channel_receive.cc",
     "channel_receive.h",
-    "channel_receive_proxy.cc",
-    "channel_receive_proxy.h",
     "channel_send.cc",
     "channel_send.h",
-    "channel_send_proxy.cc",
-    "channel_send_proxy.h",
     "conversion.h",
     "null_audio_poller.cc",
     "null_audio_poller.h",
     "remix_resample.cc",
     "remix_resample.h",
-    "time_interval.cc",
-    "time_interval.h",
     "transport_feedback_packet_loss_tracker.cc",
     "transport_feedback_packet_loss_tracker.h",
   ]
@@ -49,7 +43,6 @@ rtc_static_library("audio") {
   }
 
   deps = [
-    "..:webrtc_common",
     "../api:array_view",
     "../api:call_api",
     "../api:libjingle_peerconnection_api",
@@ -131,7 +124,6 @@ if (rtc_include_tests) {
       "remix_resample_unittest.cc",
       "test/audio_stats_test.cc",
       "test/media_transport_test.cc",
-      "time_interval_unittest.cc",
       "transport_feedback_packet_loss_tracker_unittest.cc",
     ]
     deps = [
@@ -155,6 +147,7 @@ if (rtc_include_tests) {
       "../logging:mocks",
       "../logging:rtc_event_log_api",
       "../modules/audio_device:mock_audio_device",
+      "../rtc_base:rtc_base_tests_utils",
 
       # For TestAudioDeviceModule
       "../modules/audio_device:audio_device_impl",
@@ -168,7 +161,6 @@ if (rtc_include_tests) {
       "../modules/utility",
       "../rtc_base:checks",
       "../rtc_base:rtc_base_approved",
-      "../rtc_base:rtc_base_tests_utils",
       "../rtc_base:rtc_task_queue",
       "../rtc_base:safe_compare",
       "../system_wrappers:system_wrappers",

@@ -20,13 +20,23 @@
 #define APM_PRE_AMPLIFIER_FIXED_GAIN_FACTOR_VALUE 1.f
 #define APM_GAIN_CONTROLLER2_ENABLED "apm:gain_controller2_enabled"
 #define APM_GAIN_CONTROLLER2_ENABLED_VALUE 0
-#define APM_GAIN_CONTROLLER2_FIXED_GAIN_DB "apm:gain_controller2_fixed_gain_db"
-#define APM_GAIN_CONTROLLER2_FIXED_GAIN_DB_VALUE 0.f
-#define APM_GAIN_CONTROLLER2_ADAPTIVE_DIGITAL_MODE "apm:gain_controller2_adaptive_digital_mode"
-#define APM_GAIN_CONTROLLER2_ADAPTIVE_DIGITAL_MODE_VALUE 1
-#define APM_GAIN_CONTROLLER2_EXTRA_SATURATION_MARGIN_DB \
-	"apm:gain_controller2_extra_saturation_margin_db"
-#define APM_GAIN_CONTROLLER2_EXTRA_SATURATION_MARGIN_DB_VALUE 2.f
+#define APM_GAIN_CONTROLLER2_FIXED_DIGITAL_GAIN_DB \
+	"apm:gain_controller2_fixed_digital_gain_db"
+#define APM_GAIN_CONTROLLER2_FIXED_DIGITAL_GAIN_DB_VALUE 0.f
+
+/* Keys for AudioProcessing::GainController2 */
+#define ADAPTIVE_DIGITAL_ENABLED "apm:adaptive_digital_enabled"
+#define ADAPTIVE_DIGITAL_ENABLED_VALUE 0
+#define ADAPTIVE_DIGITAL_LEVEL_ESTIMATOR \
+	"apm:adaptive_digital_level_estimator"
+#define ADAPTIVE_DIGITAL_LEVEL_ESTIMATOR_VALUE 0
+#define ADAPTIVE_DIGITAL_EXTRA_SATURATION_MARGIN_DB \
+	"apm:adaptive_digital_extra_saturation_margin_db"
+#define ADAPTIVE_DIGITAL_EXTRA_SATURATION_MARGIN_DB_VALUE 2.f
+#define ADAPTIVE_DIGITAL_USE_SATURATION_PROTECTOR \
+	"apm:adaptive_digital_use_saturation_protector"
+#define ADAPTIVE_DIGITAL_USE_SATURATION_PROTECTOR_VALUE 1
+
 #define APM_GAIN_CONTROL_COMPRESSION_GAIN_DB "apm:gain_control_compression_gain_db"
 #define APM_GAIN_CONTROL_COMPRESSION_GAIN_DB_VALUE 9
 /* 0: adaptive analog, 1: adaptive digital, 2: fixed digital */

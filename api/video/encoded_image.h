@@ -14,7 +14,9 @@
 #include <stdint.h>
 
 #include "absl/types/optional.h"
+#include "api/video/color_space.h"
 #include "api/video/video_bitrate_allocation.h"
+#include "api/video/video_codec_type.h"
 #include "api/video/video_content_type.h"
 #include "api/video/video_rotation.h"
 #include "api/video/video_timing.h"
@@ -49,14 +51,20 @@ class RTC_EXPORT EncodedImage {
   void SetEncodeTime(int64_t encode_start_ms, int64_t encode_finish_ms);
 
   absl::optional<int> SpatialIndex() const {
-    if (spatial_index_ < 0)
-      return absl::nullopt;
     return spatial_index_;
   }
   void SetSpatialIndex(absl::optional<int> spatial_index) {
     RTC_DCHECK_GE(spatial_index.value_or(0), 0);
     RTC_DCHECK_LT(spatial_index.value_or(0), kMaxSpatialLayers);
-    spatial_index_ = spatial_index.value_or(-1);
+    spatial_index_ = spatial_index;
+  }
+
+  const webrtc::ColorSpace* ColorSpace() const {
+    return color_space_ ? &*color_space_ : nullptr;
+  }
+  void SetColorSpace(const webrtc::ColorSpace* color_space) {
+    color_space_ =
+        color_space ? absl::make_optional(*color_space) : absl::nullopt;
   }
 
   uint32_t _encodedWidth = 0;
@@ -92,9 +100,8 @@ class RTC_EXPORT EncodedImage {
 
  private:
   uint32_t timestamp_rtp_ = 0;
-  // -1 means not set. Use a plain int rather than optional, to keep this class
-  // copyable with memcpy.
-  int spatial_index_ = -1;
+  absl::optional<int> spatial_index_;
+  absl::optional<webrtc::ColorSpace> color_space_;
 };
 
 }  // namespace webrtc

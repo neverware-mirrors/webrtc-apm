@@ -95,14 +95,6 @@ const char* FrameTypeToString(FrameType frame_type) {
   }
   return "";
 }
-
-void CountPacket(RtpPacketCounter* counter, const RtpPacketToSend& packet) {
-  ++counter->packets;
-  counter->header_bytes += packet.headers_size();
-  counter->padding_bytes += packet.padding_size();
-  counter->payload_bytes += packet.payload_size();
-}
-
 }  // namespace
 
 RTPSender::RTPSender(
@@ -883,13 +875,13 @@ void RTPSender::UpdateRtpStats(const RtpPacketToSend& packet,
     counters->first_packet_time_ms = now_ms;
 
   if (IsFecPacket(packet))
-    CountPacket(&counters->fec, packet);
+    counters->fec.AddPacket(packet);
 
   if (is_retransmit) {
-    CountPacket(&counters->retransmitted, packet);
+    counters->retransmitted.AddPacket(packet);
     nack_bitrate_sent_.Update(packet.size(), now_ms);
   }
-  CountPacket(&counters->transmitted, packet);
+  counters->transmitted.AddPacket(packet);
 
   if (rtp_stats_callback_)
     rtp_stats_callback_->DataCountersUpdated(*counters, packet.Ssrc());
@@ -926,15 +918,6 @@ bool RTPSender::SendToNetwork(std::unique_ptr<RtpPacketToSend> packet,
                               RtpPacketSender::Priority priority) {
   RTC_DCHECK(packet);
   int64_t now_ms = clock_->TimeInMilliseconds();
-
-  // |capture_time_ms| <= 0 is considered invalid.
-  // TODO(holmer): This should be changed all over Video Engine so that negative
-  // time is consider invalid, while 0 is considered a valid time.
-  if (packet->capture_time_ms() > 0) {
-    packet->SetExtension<TransmissionOffset>(
-        kTimestampTicksPerMs * (now_ms - packet->capture_time_ms()));
-  }
-  packet->SetExtension<AbsoluteSendTime>(AbsoluteSendTime::MsTo24Bits(now_ms));
 
   if (video_) {
     BWE_TEST_LOGGING_PLOT_WITH_SSRC(1, "VideoTotBitrate_kbps", now_ms,
@@ -978,6 +961,20 @@ bool RTPSender::SendToNetwork(std::unique_ptr<RtpPacketToSend> packet,
 
   PacketOptions options;
   options.is_retransmit = false;
+
+  // |capture_time_ms| <= 0 is considered invalid.
+  // TODO(holmer): This should be changed all over Video Engine so that negative
+  // time is consider invalid, while 0 is considered a valid time.
+  if (packet->capture_time_ms() > 0) {
+    packet->SetExtension<TransmissionOffset>(
+        kTimestampTicksPerMs * (now_ms - packet->capture_time_ms()));
+
+    if (populate_network2_timestamp_ &&
+        packet->HasExtension<VideoTimingExtension>()) {
+      packet->set_network2_time_ms(now_ms);
+    }
+  }
+  packet->SetExtension<AbsoluteSendTime>(AbsoluteSendTime::MsTo24Bits(now_ms));
 
   bool has_transport_seq_num;
   {

@@ -270,11 +270,23 @@ class AudioProcessing : public rtc::RefCountInterface {
     // first applies a fixed gain. The adaptive digital AGC can be turned off by
     // setting |adaptive_digital_mode=false|.
     struct GainController2 {
+      enum LevelEstimator { kRms, kPeak };
       bool enabled = false;
-      bool adaptive_digital_mode = true;
-      float extra_saturation_margin_db = 2.f;
-      float fixed_gain_db = 0.f;
+      struct {
+        float gain_db = 0.f;
+      } fixed_digital;
+      struct {
+        bool enabled = false;
+        LevelEstimator level_estimator = kRms;
+        bool use_saturation_protector = true;
+        float extra_saturation_margin_db = 2.f;
+      } adaptive_digital;
     } gain_controller2;
+
+    // Enables reporting of |output_rms_dbfs| in webrtc::AudioProcessingStats.
+    struct LevelEstimation {
+      bool enabled = false;
+    } level_estimation;
 
     // Explicit copy assignment implementation to avoid issues with memory
     // sanitizer complaints in case of self-assignment.

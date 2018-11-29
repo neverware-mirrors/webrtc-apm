@@ -340,6 +340,22 @@ class PeerConnectionInterface : public rtc::RefCountInterface {
       media_config.video.experiment_cpu_load_estimator = enable;
     }
 
+    int audio_rtcp_report_interval_ms() const {
+      return media_config.audio.rtcp_report_interval_ms;
+    }
+    void set_audio_rtcp_report_interval_ms(int audio_rtcp_report_interval_ms) {
+      media_config.audio.rtcp_report_interval_ms =
+          audio_rtcp_report_interval_ms;
+    }
+
+    int video_rtcp_report_interval_ms() const {
+      return media_config.video.rtcp_report_interval_ms;
+    }
+    void set_video_rtcp_report_interval_ms(int video_rtcp_report_interval_ms) {
+      media_config.video.rtcp_report_interval_ms =
+          video_rtcp_report_interval_ms;
+    }
+
     static const int kUndefined = -1;
     // Default maximum number of packets in the audio jitter buffer.
     static const int kAudioJitterBufferMaxPackets = 50;
@@ -433,6 +449,9 @@ class PeerConnectionInterface : public rtc::RefCountInterface {
     // Whether to use the NetEq "fast mode" which will accelerate audio quicker
     // if it falls behind.
     bool audio_jitter_buffer_fast_accelerate = false;
+
+    // The minimum delay in milliseconds for the audio jitter buffer.
+    int audio_jitter_buffer_min_delay_ms = 0;
 
     // Timeout in milliseconds before an ICE candidate pair is considered to be
     // "not receiving", after which a lower priority candidate pair may be
@@ -596,6 +615,14 @@ class PeerConnectionInterface : public rtc::RefCountInterface {
     // frame encryption for native WebRTC. Setting this will overwrite any
     // settings set in PeerConnectionFactory (which is deprecated).
     absl::optional<CryptoOptions> crypto_options;
+
+    // Configure if we should include the SDP attribute extmap-allow-mixed in
+    // our offer. Although we currently do support this, it's not included in
+    // our offer by default due to a previous bug that caused the SDP parser to
+    // abort parsing if this attribute was present. This is fixed in Chrome 71.
+    // TODO(webrtc:9985): Change default to true once sufficient time has
+    // passed.
+    bool offer_extmap_allow_mixed = false;
 
     //
     // Don't forget to update operator== if adding something.
@@ -1347,142 +1374,6 @@ class PeerConnectionFactoryInterface : public rtc::RefCountInterface {
   PeerConnectionFactoryInterface() {}
   ~PeerConnectionFactoryInterface() override = default;
 };
-
-#if defined(USE_BUILTIN_SW_CODECS)
-// Create a new instance of PeerConnectionFactoryInterface.
-//
-// This method relies on the thread it's called on as the "signaling thread"
-// for the PeerConnectionFactory it creates.
-//
-// As such, if the current thread is not already running an rtc::Thread message
-// loop, an application using this method must eventually either call
-// rtc::Thread::Current()->Run(), or call
-// rtc::Thread::Current()->ProcessMessages() within the application's own
-// message loop.
-RTC_EXPORT rtc::scoped_refptr<PeerConnectionFactoryInterface>
-CreatePeerConnectionFactory(
-    rtc::scoped_refptr<AudioEncoderFactory> audio_encoder_factory,
-    rtc::scoped_refptr<AudioDecoderFactory> audio_decoder_factory);
-
-// Create a new instance of PeerConnectionFactoryInterface.
-//
-// |network_thread|, |worker_thread| and |signaling_thread| are
-// the only mandatory parameters.
-//
-// If non-null, a reference is added to |default_adm|, and ownership of
-// |video_encoder_factory| and |video_decoder_factory| is transferred to the
-// returned factory.
-// TODO(deadbeef): Use rtc::scoped_refptr<> and std::unique_ptr<> to make this
-// ownership transfer and ref counting more obvious.
-RTC_EXPORT rtc::scoped_refptr<PeerConnectionFactoryInterface>
-CreatePeerConnectionFactory(
-    rtc::Thread* network_thread,
-    rtc::Thread* worker_thread,
-    rtc::Thread* signaling_thread,
-    AudioDeviceModule* default_adm,
-    rtc::scoped_refptr<AudioEncoderFactory> audio_encoder_factory,
-    rtc::scoped_refptr<AudioDecoderFactory> audio_decoder_factory,
-    cricket::WebRtcVideoEncoderFactory* video_encoder_factory,
-    cricket::WebRtcVideoDecoderFactory* video_decoder_factory);
-
-// Create a new instance of PeerConnectionFactoryInterface with optional
-// external audio mixed and audio processing modules.
-//
-// If |audio_mixer| is null, an internal audio mixer will be created and used.
-// If |audio_processing| is null, an internal audio processing module will be
-// created and used.
-RTC_EXPORT rtc::scoped_refptr<PeerConnectionFactoryInterface>
-CreatePeerConnectionFactory(
-    rtc::Thread* network_thread,
-    rtc::Thread* worker_thread,
-    rtc::Thread* signaling_thread,
-    AudioDeviceModule* default_adm,
-    rtc::scoped_refptr<AudioEncoderFactory> audio_encoder_factory,
-    rtc::scoped_refptr<AudioDecoderFactory> audio_decoder_factory,
-    cricket::WebRtcVideoEncoderFactory* video_encoder_factory,
-    cricket::WebRtcVideoDecoderFactory* video_decoder_factory,
-    rtc::scoped_refptr<AudioMixer> audio_mixer,
-    rtc::scoped_refptr<AudioProcessing> audio_processing);
-
-// Create a new instance of PeerConnectionFactoryInterface with optional
-// external audio mixer, audio processing, and fec controller modules.
-//
-// If |audio_mixer| is null, an internal audio mixer will be created and used.
-// If |audio_processing| is null, an internal audio processing module will be
-// created and used.
-// If |fec_controller_factory| is null, an internal fec controller module will
-// be created and used.
-// If |network_controller_factory| is provided, it will be used if enabled via
-// field trial.
-RTC_EXPORT rtc::scoped_refptr<PeerConnectionFactoryInterface>
-CreatePeerConnectionFactory(
-    rtc::Thread* network_thread,
-    rtc::Thread* worker_thread,
-    rtc::Thread* signaling_thread,
-    AudioDeviceModule* default_adm,
-    rtc::scoped_refptr<AudioEncoderFactory> audio_encoder_factory,
-    rtc::scoped_refptr<AudioDecoderFactory> audio_decoder_factory,
-    cricket::WebRtcVideoEncoderFactory* video_encoder_factory,
-    cricket::WebRtcVideoDecoderFactory* video_decoder_factory,
-    rtc::scoped_refptr<AudioMixer> audio_mixer,
-    rtc::scoped_refptr<AudioProcessing> audio_processing,
-    std::unique_ptr<FecControllerFactoryInterface> fec_controller_factory,
-    std::unique_ptr<NetworkControllerFactoryInterface>
-        network_controller_factory = nullptr);
-#endif
-
-// Create a new instance of PeerConnectionFactoryInterface with optional video
-// codec factories. These video factories represents all video codecs, i.e. no
-// extra internal video codecs will be added.
-// When building WebRTC with rtc_use_builtin_sw_codecs = false, this is the
-// only available CreatePeerConnectionFactory overload.
-RTC_EXPORT rtc::scoped_refptr<PeerConnectionFactoryInterface>
-CreatePeerConnectionFactory(
-    rtc::Thread* network_thread,
-    rtc::Thread* worker_thread,
-    rtc::Thread* signaling_thread,
-    rtc::scoped_refptr<AudioDeviceModule> default_adm,
-    rtc::scoped_refptr<AudioEncoderFactory> audio_encoder_factory,
-    rtc::scoped_refptr<AudioDecoderFactory> audio_decoder_factory,
-    std::unique_ptr<VideoEncoderFactory> video_encoder_factory,
-    std::unique_ptr<VideoDecoderFactory> video_decoder_factory,
-    rtc::scoped_refptr<AudioMixer> audio_mixer,
-    rtc::scoped_refptr<AudioProcessing> audio_processing);
-
-#if defined(USE_BUILTIN_SW_CODECS)
-// Create a new instance of PeerConnectionFactoryInterface with external audio
-// mixer.
-//
-// If |audio_mixer| is null, an internal audio mixer will be created and used.
-RTC_EXPORT rtc::scoped_refptr<PeerConnectionFactoryInterface>
-CreatePeerConnectionFactoryWithAudioMixer(
-    rtc::Thread* network_thread,
-    rtc::Thread* worker_thread,
-    rtc::Thread* signaling_thread,
-    AudioDeviceModule* default_adm,
-    rtc::scoped_refptr<AudioEncoderFactory> audio_encoder_factory,
-    rtc::scoped_refptr<AudioDecoderFactory> audio_decoder_factory,
-    cricket::WebRtcVideoEncoderFactory* video_encoder_factory,
-    cricket::WebRtcVideoDecoderFactory* video_decoder_factory,
-    rtc::scoped_refptr<AudioMixer> audio_mixer);
-
-// Create a new instance of PeerConnectionFactoryInterface.
-// Same thread is used as worker and network thread.
-RTC_EXPORT inline rtc::scoped_refptr<PeerConnectionFactoryInterface>
-CreatePeerConnectionFactory(
-    rtc::Thread* worker_and_network_thread,
-    rtc::Thread* signaling_thread,
-    AudioDeviceModule* default_adm,
-    rtc::scoped_refptr<AudioEncoderFactory> audio_encoder_factory,
-    rtc::scoped_refptr<AudioDecoderFactory> audio_decoder_factory,
-    cricket::WebRtcVideoEncoderFactory* video_encoder_factory,
-    cricket::WebRtcVideoDecoderFactory* video_decoder_factory) {
-  return CreatePeerConnectionFactory(
-      worker_and_network_thread, worker_and_network_thread, signaling_thread,
-      default_adm, audio_encoder_factory, audio_decoder_factory,
-      video_encoder_factory, video_decoder_factory);
-}
-#endif
 
 // This is a lower-level version of the CreatePeerConnectionFactory functions
 // above. It's implemented in the "peerconnection" build target, whereas the

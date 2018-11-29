@@ -18,7 +18,6 @@
 #include "absl/strings/match.h"
 #include "api/audio/audio_frame.h"
 #include "api/audio_codecs/audio_decoder.h"
-#include "common_types.h"
 #include "modules/audio_coding/acm2/acm_resampler.h"
 #include "modules/audio_coding/acm2/call_statistics.h"
 #include "modules/audio_coding/acm2/rent_a_codec.h"
@@ -346,6 +345,13 @@ void AcmReceiver::GetNetworkStatistics(NetworkStatistics* acm_stat) {
   acm_stat->concealedSamples = neteq_lifetime_stat.concealed_samples;
   acm_stat->concealmentEvents = neteq_lifetime_stat.concealment_events;
   acm_stat->jitterBufferDelayMs = neteq_lifetime_stat.jitter_buffer_delay_ms;
+  acm_stat->delayedPacketOutageSamples =
+      neteq_lifetime_stat.delayed_packet_outage_samples;
+
+  NetEqOperationsAndState neteq_operations_and_state =
+      neteq_->GetOperationsAndState();
+  acm_stat->packetBufferFlushes =
+      neteq_operations_and_state.packet_buffer_flushes;
 }
 
 int AcmReceiver::DecoderByPayloadType(uint8_t payload_type,

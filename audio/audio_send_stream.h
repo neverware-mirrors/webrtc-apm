@@ -14,7 +14,7 @@
 #include <memory>
 #include <vector>
 
-#include "audio/time_interval.h"
+#include "audio/channel_send.h"
 #include "audio/transport_feedback_packet_loss_tracker.h"
 #include "call/audio_send_stream.h"
 #include "call/audio_state.h"
@@ -29,10 +29,6 @@ class RtcEventLog;
 class RtcpBandwidthObserver;
 class RtcpRttStats;
 class RtpTransportControllerSendInterface;
-
-namespace voe {
-class ChannelSendProxy;
-}  // namespace voe
 
 namespace internal {
 class AudioState;
@@ -49,9 +45,8 @@ class AudioSendStream final : public webrtc::AudioSendStream,
                   BitrateAllocatorInterface* bitrate_allocator,
                   RtcEventLog* event_log,
                   RtcpRttStats* rtcp_rtt_stats,
-                  const absl::optional<RtpState>& suspended_rtp_state,
-                  TimeInterval* overall_call_lifetime);
-  // For unit tests, which need to supply a mock channel proxy.
+                  const absl::optional<RtpState>& suspended_rtp_state);
+  // For unit tests, which need to supply a mock ChannelSend.
   AudioSendStream(const webrtc::AudioSendStream::Config& config,
                   const rtc::scoped_refptr<webrtc::AudioState>& audio_state,
                   rtc::TaskQueue* worker_queue,
@@ -60,8 +55,7 @@ class AudioSendStream final : public webrtc::AudioSendStream,
                   RtcEventLog* event_log,
                   RtcpRttStats* rtcp_rtt_stats,
                   const absl::optional<RtpState>& suspended_rtp_state,
-                  TimeInterval* overall_call_lifetime,
-                  std::unique_ptr<voe::ChannelSendProxy> channel_proxy);
+                  std::unique_ptr<voe::ChannelSendInterface> channel_send);
   ~AudioSendStream() override;
 
   // webrtc::AudioSendStream implementation.
@@ -93,7 +87,7 @@ class AudioSendStream final : public webrtc::AudioSendStream,
   void SetTransportOverhead(int transport_overhead_per_packet);
 
   RtpState GetRtpState() const;
-  const voe::ChannelSendProxy& GetChannelProxy() const;
+  const voe::ChannelSendInterface* GetChannel() const;
 
  private:
   class TimedTransport;
@@ -130,7 +124,7 @@ class AudioSendStream final : public webrtc::AudioSendStream,
   rtc::TaskQueue* worker_queue_;
   webrtc::AudioSendStream::Config config_;
   rtc::scoped_refptr<webrtc::AudioState> audio_state_;
-  std::unique_ptr<voe::ChannelSendProxy> channel_proxy_;
+  const std::unique_ptr<voe::ChannelSendInterface> channel_send_;
   RtcEventLog* const event_log_;
 
   int encoder_sample_rate_hz_ = 0;
@@ -146,10 +140,6 @@ class AudioSendStream final : public webrtc::AudioSendStream,
 
   RtpRtcp* rtp_rtcp_module_;
   absl::optional<RtpState> const suspended_rtp_state_;
-
-  std::unique_ptr<TimedTransport> timed_send_transport_adapter_;
-  TimeInterval active_lifetime_;
-  TimeInterval* overall_call_lifetime_ = nullptr;
 
   // RFC 5285: Each distinct extension MUST have a unique ID. The value 0 is
   // reserved for padding and MUST NOT be used as a local identifier.

@@ -118,6 +118,8 @@ void aec_config_get(dictionary *ini, webrtc::EchoCanceller3Config *config)
 		AEC_GET_FLOAT(ini, ERLE, MAX_H);
 	config->erle.onset_detection =
 		AEC_GET_INT(ini, ERLE, ONSET_DETECTION);
+	config->erle.num_sections =
+		AEC_GET_INT(ini, ERLE, NUM_SECTIONS);
 
 	config->ep_strength.lf =
 		AEC_GET_FLOAT(ini, EP_STRENGTH, LF);
