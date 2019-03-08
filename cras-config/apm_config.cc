@@ -51,7 +51,7 @@ void apm_config_apply(dictionary *ini, webrtc::AudioProcessing *apm)
 			level_estimator);
 	config.gain_controller2.adaptive_digital.use_saturation_protector =
 		APM_GET_INT(ini, ADAPTIVE_DIGITAL_USE_SATURATION_PROTECTOR);
-	config.gain_controller2.fixed_digital.gain_db = 0;
+	config.gain_controller2.fixed_digital.gain_db =
 		APM_GET_FLOAT(ini, APM_GAIN_CONTROLLER2_FIXED_DIGITAL_GAIN_DB);
 	apm->ApplyConfig(config);
 
