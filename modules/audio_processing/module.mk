@@ -234,6 +234,11 @@ $(PROTO_DIR)/debug.pb.h:
 clean: CLEAN($(PROTO_DIR)/debug.pb.h $(PROTO_DIR)/debug.pb.cc)
 $(eval $(call add_object_rules,$(PROTO_DIR)/debug.pb.o,CXX,cc,CXXFLAGS))
 
+modules/audio_processing/aec_dump/aec_dump_impl.o.depends \
+modules/audio_processing/aec_dump/capture_stream_info.o.depends \
+modules/audio_processing/aec_dump/write_to_file_task.o.depends: \
+	$(PROTO_DIR)/debug.pb.h
+
 audioproc_debug_proto_CXX_OBJECTS = \
 	$(PROTO_DIR)/debug.pb.o
 
