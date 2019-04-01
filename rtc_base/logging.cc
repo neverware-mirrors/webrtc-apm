@@ -35,14 +35,14 @@ static const int kMaxLogLineSize = 1024 - 60;
 #include <vector>
 
 #include "rtc_base/checks.h"
-#include "rtc_base/criticalsection.h"
+#include "rtc_base/critical_section.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/platform_thread_types.h"
-#include "rtc_base/stringencode.h"
+#include "rtc_base/string_encode.h"
+#include "rtc_base/string_utils.h"
 #include "rtc_base/strings/string_builder.h"
-#include "rtc_base/stringutils.h"
 #include "rtc_base/thread_annotations.h"
-#include "rtc_base/timeutils.h"
+#include "rtc_base/time_utils.h"
 
 namespace rtc {
 namespace {
@@ -308,8 +308,6 @@ void LogMessage::ConfigureLogging(const char* params) {
       LogThreads();
 
       // Logging levels
-    } else if (token == "sensitive") {
-      current_level = LS_SENSITIVE;
     } else if (token == "verbose") {
       current_level = LS_VERBOSE;
     } else if (token == "info") {
@@ -402,13 +400,6 @@ void LogMessage::OutputToDebug(const std::string& str,
   // from the shell.
   int prio;
   switch (severity) {
-    case LS_SENSITIVE:
-      __android_log_write(ANDROID_LOG_INFO, tag, "SENSITIVE");
-      if (log_to_stderr) {
-        fprintf(stderr, "SENSITIVE");
-        fflush(stderr);
-      }
-      return;
     case LS_VERBOSE:
       prio = ANDROID_LOG_VERBOSE;
       break;
@@ -540,9 +531,11 @@ void Log(const LogArgType* fmt, ...) {
       case LogArgType::kLongDouble:
         log_message.stream() << va_arg(args, long double);
         break;
-      case LogArgType::kCharP:
-        log_message.stream() << va_arg(args, const char*);
+      case LogArgType::kCharP: {
+        const char* s = va_arg(args, const char*);
+        log_message.stream() << (s ? s : "(null)");
         break;
+      }
       case LogArgType::kStdString:
         log_message.stream() << *va_arg(args, const std::string*);
         break;

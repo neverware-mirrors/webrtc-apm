@@ -29,10 +29,23 @@ size_t EncodedImage::GetBufferPaddingBytes(VideoCodecType codec_type) {
 
 EncodedImage::EncodedImage() : EncodedImage(nullptr, 0, 0) {}
 
+EncodedImage::EncodedImage(EncodedImage&&) = default;
 EncodedImage::EncodedImage(const EncodedImage&) = default;
 
-EncodedImage::EncodedImage(uint8_t* buffer, size_t length, size_t size)
-    : _buffer(buffer), _length(length), _size(size) {}
+EncodedImage::EncodedImage(uint8_t* buffer, size_t size, size_t capacity)
+    : size_(size), buffer_(buffer), capacity_(capacity) {}
+
+EncodedImage::~EncodedImage() = default;
+
+EncodedImage& EncodedImage::operator=(EncodedImage&&) = default;
+EncodedImage& EncodedImage::operator=(const EncodedImage&) = default;
+
+void EncodedImage::Retain() {
+  if (buffer_) {
+    encoded_data_.SetData(buffer_, size_);
+    buffer_ = nullptr;
+  }
+}
 
 void EncodedImage::SetEncodeTime(int64_t encode_start_ms,
                                  int64_t encode_finish_ms) {

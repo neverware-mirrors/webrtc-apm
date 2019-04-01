@@ -11,12 +11,11 @@
 #ifndef RTC_BASE_SEQUENCED_TASK_CHECKER_IMPL_H_
 #define RTC_BASE_SEQUENCED_TASK_CHECKER_IMPL_H_
 
-#include "rtc_base/criticalsection.h"
+#include "rtc_base/critical_section.h"
 #include "rtc_base/thread_checker.h"
 
 namespace rtc {
 
-class TaskQueue;
 // Real implementation of SequencedTaskChecker, for use in debug mode, or
 // for temporary use in release mode.
 //

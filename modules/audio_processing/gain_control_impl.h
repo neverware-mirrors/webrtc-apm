@@ -19,8 +19,8 @@
 #include "absl/types/optional.h"
 #include "api/array_view.h"
 #include "modules/audio_processing/include/gain_control.h"
-#include "rtc_base/constructormagic.h"
-#include "rtc_base/criticalsection.h"
+#include "rtc_base/constructor_magic.h"
+#include "rtc_base/critical_section.h"
 #include "rtc_base/thread_annotations.h"
 
 namespace webrtc {
@@ -30,8 +30,7 @@ class AudioBuffer;
 
 class GainControlImpl : public GainControl {
  public:
-  GainControlImpl(rtc::CriticalSection* crit_render,
-                  rtc::CriticalSection* crit_capture);
+  explicit GainControlImpl(rtc::CriticalSection* crit_capture);
   ~GainControlImpl() override;
 
   void ProcessRenderAudio(rtc::ArrayView<const int16_t> packed_render_audio);
@@ -67,9 +66,8 @@ class GainControlImpl : public GainControl {
   int analog_level_maximum() const override;
   bool stream_is_saturated() const override;
 
-  int Configure();
+  int Configure() RTC_EXCLUSIVE_LOCKS_REQUIRED(crit_capture_);
 
-  rtc::CriticalSection* const crit_render_ RTC_ACQUIRED_BEFORE(crit_capture_);
   rtc::CriticalSection* const crit_capture_;
 
   std::unique_ptr<ApmDataDumper> data_dumper_;

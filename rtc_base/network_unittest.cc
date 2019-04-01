@@ -16,8 +16,8 @@
 #include <vector>
 
 #include "rtc_base/checks.h"
-#include "rtc_base/nethelpers.h"
-#include "rtc_base/networkmonitor.h"
+#include "rtc_base/net_helpers.h"
+#include "rtc_base/network_monitor.h"
 #if defined(WEBRTC_POSIX)
 #include <net/if.h>
 #include <sys/types.h>
@@ -171,6 +171,48 @@ class NetworkTest : public testing::Test, public sigslot::has_slots<> {
                                      BasicNetworkManager& network_manager) {
     ifaddrs* addr_list = nullptr;
     addr_list = AddIpv6Address(addr_list, if_name, ipv6_address, ipv6_mask, 0);
+    NetworkManager::NetworkList result;
+    bool changed;
+    NetworkManager::Stats stats;
+    CallConvertIfAddrs(network_manager, addr_list, true, &result);
+    network_manager.MergeNetworkList(result, &changed, &stats);
+    return addr_list;
+  }
+
+  struct sockaddr_in* CreateIpv4Addr(const std::string& ip_string) {
+    struct sockaddr_in* ipv4_addr =
+        static_cast<struct sockaddr_in*>(malloc(sizeof(struct sockaddr_in)));
+    memset(ipv4_addr, 0, sizeof(struct sockaddr_in));
+    ipv4_addr->sin_family = AF_INET;
+    IPAddress ip;
+    IPFromString(ip_string, &ip);
+    ipv4_addr->sin_addr = ip.ipv4_address();
+    return ipv4_addr;
+  }
+
+  // Pointers created here need to be released via ReleaseIfAddrs.
+  struct ifaddrs* AddIpv4Address(struct ifaddrs* list,
+                                 char* if_name,
+                                 const std::string& ipv4_address,
+                                 const std::string& ipv4_netmask) {
+    struct ifaddrs* if_addr = new struct ifaddrs;
+    memset(if_addr, 0, sizeof(struct ifaddrs));
+    if_addr->ifa_name = if_name;
+    if_addr->ifa_addr =
+        reinterpret_cast<struct sockaddr*>(CreateIpv4Addr(ipv4_address));
+    if_addr->ifa_netmask =
+        reinterpret_cast<struct sockaddr*>(CreateIpv4Addr(ipv4_netmask));
+    if_addr->ifa_next = list;
+    if_addr->ifa_flags = IFF_RUNNING;
+    return if_addr;
+  }
+
+  struct ifaddrs* InstallIpv4Network(char* if_name,
+                                     const std::string& ipv4_address,
+                                     const std::string& ipv4_mask,
+                                     BasicNetworkManager& network_manager) {
+    ifaddrs* addr_list = nullptr;
+    addr_list = AddIpv4Address(addr_list, if_name, ipv4_address, ipv4_mask);
     NetworkManager::NetworkList result;
     bool changed;
     NetworkManager::Stats stats;
@@ -624,22 +666,10 @@ TEST_F(NetworkTest, TestCreateAndDumpNetworks) {
   manager.DumpNetworks();
 }
 
-// Test that we can toggle IPv6 on and off.
-// Crashes on Linux. See webrtc:4923.
-#if defined(WEBRTC_LINUX)
-#define MAYBE_TestIPv6Toggle DISABLED_TestIPv6Toggle
-#else
-#define MAYBE_TestIPv6Toggle TestIPv6Toggle
-#endif
-TEST_F(NetworkTest, MAYBE_TestIPv6Toggle) {
+TEST_F(NetworkTest, TestIPv6Toggle) {
   BasicNetworkManager manager;
   bool ipv6_found = false;
   NetworkManager::NetworkList list;
-#if !defined(WEBRTC_WIN)
-  // There should be at least one IPv6 network (fe80::/64 should be in there).
-  // TODO(thaloun): Disabling this test on windows for the moment as the test
-  // machines don't seem to have IPv6 installed on them at all.
-  manager.set_ipv6_enabled(true);
   list = GetNetworks(manager, true);
   for (NetworkManager::NetworkList::iterator it = list.begin();
        it != list.end(); ++it) {
@@ -649,22 +679,6 @@ TEST_F(NetworkTest, MAYBE_TestIPv6Toggle) {
     }
   }
   EXPECT_TRUE(ipv6_found);
-  for (NetworkManager::NetworkList::iterator it = list.begin();
-       it != list.end(); ++it) {
-    delete (*it);
-  }
-#endif
-  ipv6_found = false;
-  manager.set_ipv6_enabled(false);
-  list = GetNetworks(manager, true);
-  for (NetworkManager::NetworkList::iterator it = list.begin();
-       it != list.end(); ++it) {
-    if ((*it)->prefix().family() == AF_INET6) {
-      ipv6_found = true;
-      break;
-    }
-  }
-  EXPECT_FALSE(ipv6_found);
   for (NetworkManager::NetworkList::iterator it = list.begin();
        it != list.end(); ++it) {
     delete (*it);
@@ -830,6 +844,8 @@ TEST_F(NetworkTest, TestGetAdapterTypeFromNetworkMonitor) {
 // a few cases. Note that UNKNOWN type for non-matching strings has been tested
 // in the above test.
 TEST_F(NetworkTest, TestGetAdapterTypeFromNameMatching) {
+  std::string ipv4_address1 = "192.0.0.121";
+  std::string ipv4_mask = "255.255.255.0";
   std::string ipv6_address1 = "1000:2000:3000:4000:0:0:0:1";
   std::string ipv6_address2 = "1000:2000:3000:8000:0:0:0:1";
   std::string ipv6_mask = "FFFF:FFFF:FFFF:FFFF::";
@@ -850,7 +866,7 @@ TEST_F(NetworkTest, TestGetAdapterTypeFromNameMatching) {
   ReleaseIfAddrs(addr_list);
 
   strcpy(if_name, "eth0");
-  addr_list = InstallIpv6Network(if_name, ipv6_address1, ipv6_mask, manager);
+  addr_list = InstallIpv4Network(if_name, ipv4_address1, ipv4_mask, manager);
   EXPECT_EQ(ADAPTER_TYPE_ETHERNET, GetAdapterType(manager));
   ClearNetworks(manager);
   ReleaseIfAddrs(addr_list);
@@ -883,6 +899,12 @@ TEST_F(NetworkTest, TestGetAdapterTypeFromNameMatching) {
 
   strcpy(if_name, "v4-rmnet_data0");
   addr_list = InstallIpv6Network(if_name, ipv6_address2, ipv6_mask, manager);
+  EXPECT_EQ(ADAPTER_TYPE_CELLULAR, GetAdapterType(manager));
+  ClearNetworks(manager);
+  ReleaseIfAddrs(addr_list);
+
+  strcpy(if_name, "clat4");
+  addr_list = InstallIpv4Network(if_name, ipv4_address1, ipv4_mask, manager);
   EXPECT_EQ(ADAPTER_TYPE_CELLULAR, GetAdapterType(manager));
   ClearNetworks(manager);
   ReleaseIfAddrs(addr_list);

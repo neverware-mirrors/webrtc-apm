@@ -24,8 +24,6 @@ void aec_config_get(dictionary *ini, webrtc::EchoCanceller3Config *config)
 	if (ini == NULL)
 		return;
 
-	config->buffering.use_new_render_buffering =
-		AEC_GET_INT(ini, BUFFERING, USE_NEW_RENDER_BUFFERING);
 	config->buffering.excess_render_detection_interval_blocks =
 		AEC_GET_INT(ini, BUFFERING,
 			EXCESS_RENDER_DETECTION_INTERVAL_BLOCKS);
@@ -38,18 +36,10 @@ void aec_config_get(dictionary *ini, webrtc::EchoCanceller3Config *config)
 		AEC_GET_INT(ini, DELAY, DOWN_SAMPLING_FACTOR);
 	config->delay.num_filters =
 		AEC_GET_INT(ini, DELAY, NUM_FILTERS);
-	config->delay.api_call_jitter_blocks =
-		AEC_GET_INT(ini, DELAY, API_CALL_JITTER_BLOCKS);
-	config->delay.min_echo_path_delay_blocks =
-		AEC_GET_INT(ini, DELAY, MIN_ECHO_PATH_DELAY_BLOCKS);
-	config->delay.delay_headroom_blocks =
-		AEC_GET_INT(ini, DELAY, DELAY_HEADROOM_BLOCKS);
-	config->delay.hysteresis_limit_1_blocks =
-		AEC_GET_INT(ini, DELAY, HYSTERESIS_LIMIT_1_BLOCKS);
-	config->delay.hysteresis_limit_2_blocks =
-		AEC_GET_INT(ini, DELAY, HYSTERESIS_LIMIT_2_BLOCKS);
-	config->delay.skew_hysteresis_blocks =
-		AEC_GET_INT(ini, DELAY, SKEW_HYSTERESIS_BLOCKS);
+	config->delay.delay_headroom_samples =
+		AEC_GET_INT(ini, DELAY, DELAY_HEADROOM_SAMPLES);
+	config->delay.hysteresis_limit_blocks =
+		AEC_GET_INT(ini, DELAY, HYSTERESIS_LIMIT_BLOCKS);
 	config->delay.fixed_capture_delay_samples =
 		AEC_GET_INT(ini, DELAY, FIXED_CAPTURE_DELAY_SAMPLES);
 	config->delay.delay_estimate_smoothing =
@@ -121,12 +111,8 @@ void aec_config_get(dictionary *ini, webrtc::EchoCanceller3Config *config)
 	config->erle.num_sections =
 		AEC_GET_INT(ini, ERLE, NUM_SECTIONS);
 
-	config->ep_strength.lf =
-		AEC_GET_FLOAT(ini, EP_STRENGTH, LF);
-	config->ep_strength.mf =
-		AEC_GET_FLOAT(ini, EP_STRENGTH, MF);
-	config->ep_strength.hf =
-		AEC_GET_FLOAT(ini, EP_STRENGTH, HF);
+	config->ep_strength.default_gain =
+		AEC_GET_FLOAT(ini, EP_STRENGTH, DEFAULT_GAIN);
 	config->ep_strength.default_len =
 		AEC_GET_FLOAT(ini, EP_STRENGTH, DEFAULT_LEN);
 	config->ep_strength.reverb_based_on_render =
@@ -161,14 +147,6 @@ void aec_config_get(dictionary *ini, webrtc::EchoCanceller3Config *config)
 	config->render_levels.poor_excitation_render_limit_ds8 =
 		AEC_GET_FLOAT(ini, RENDER_LEVELS, POOR_EXCITATION_RENDER_LIMIT_DS8);
 
-	config->echo_removal_control.gain_rampup.initial_gain =
-		AEC_GET_FLOAT(ini, ECHO_REMOVAL_CTL, INITIAL_GAIN);
-	config->echo_removal_control.gain_rampup.first_non_zero_gain =
-		AEC_GET_FLOAT(ini, ECHO_REMOVAL_CTL, FIRST_NON_ZERO_GAIN);
-	config->echo_removal_control.gain_rampup.non_zero_gain_blocks =
-		AEC_GET_INT(ini, ECHO_REMOVAL_CTL, NON_ZERO_GAIN_BLOCKS);
-	config->echo_removal_control.gain_rampup.full_gain_blocks =
-		AEC_GET_INT(ini, ECHO_REMOVAL_CTL, FULL_GAIN_BLOCKS);
 	config->echo_removal_control.has_clock_drift =
 		AEC_GET_INT(ini, ECHO_REMOVAL_CTL, HAS_CLOCK_DRIFT);
 	config->echo_removal_control.linear_and_stable_echo_path =
@@ -288,8 +266,6 @@ void aec_config_dump(dictionary *ini)
 
 	syslog(LOG_ERR, "---- aec config dump ----");
 	syslog(LOG_ERR, "Buffering:");
-	syslog(LOG_ERR, "    use_new_render_buffering %d",
-			config.buffering.use_new_render_buffering);
 	syslog(LOG_ERR, "    excess_render_detection_interval_blocks %zu",
 			config.buffering.excess_render_detection_interval_blocks);
 	syslog(LOG_ERR, "    max_allowed_excess_render_blocks %zu",
@@ -300,15 +276,9 @@ void aec_config_dump(dictionary *ini)
 			config.delay.default_delay,
 			config.delay.down_sampling_factor,
 			config.delay.num_filters);
-	syslog(LOG_ERR, "    api_call_jitter_blocks %zu, min_echo_path_delay_blocks %zu",
-			config.delay.api_call_jitter_blocks,
-			config.delay.min_echo_path_delay_blocks);
-	syslog(LOG_ERR, "    delay_headroom_blocks %zu, hysteresis_limit_1_blocks %zu",
-			config.delay.delay_headroom_blocks,
-			config.delay.hysteresis_limit_1_blocks);
-	syslog(LOG_ERR, "    hysteresis_limit_2_blocks %zu, skew_hysteresis_blocks %zu",
-			config.delay.hysteresis_limit_2_blocks,
-			config.delay.skew_hysteresis_blocks);
+	syslog(LOG_ERR, "    delay_headroom_samples %zu, hysteresis_limit_blocks %zu",
+			config.delay.delay_headroom_samples,
+			config.delay.hysteresis_limit_blocks);
 	syslog(LOG_ERR, "    fixed_capture_delay_samples %zu",
 			config.delay.fixed_capture_delay_samples);
 	syslog(LOG_ERR, "    delay_estimate_smoothing %f",
@@ -359,10 +329,8 @@ void aec_config_dump(dictionary *ini)
 	syslog(LOG_ERR, "Erle: min %f max_l %f max_h %f onset_detection %d",
 			config.erle.min, config.erle.max_l,
 			config.erle.max_h, config.erle.onset_detection);
-	syslog(LOG_ERR, "Ep strength: lf %f mf %f hf %f default_len %f",
-			config.ep_strength.lf,
-			config.ep_strength.mf,
-			config.ep_strength.hf,
+	syslog(LOG_ERR, "Ep strength: default_gain %f default_len %f",
+			config.ep_strength.default_gain,
 			config.ep_strength.default_len);
 	syslog(LOG_ERR, "    echo_can_saturate %d, bounded_erl %d,"
 			"    ep_strength.reverb_based_on_render %d",
@@ -394,12 +362,6 @@ void aec_config_dump(dictionary *ini)
 			config.render_levels.poor_excitation_render_limit_ds8);
 	syslog(LOG_ERR, "Echo removal control:");
 	syslog(LOG_ERR, "    gain rampup:");
-	syslog(LOG_ERR, "        initial_gain %f, first_non_zero_gain %f",
-			config.echo_removal_control.gain_rampup.initial_gain,
-			config.echo_removal_control.gain_rampup.first_non_zero_gain);
-	syslog(LOG_ERR, "        non_zero_gain_blocks %d, full_gain_blocks %d",
-			config.echo_removal_control.gain_rampup.non_zero_gain_blocks,
-			config.echo_removal_control.gain_rampup.full_gain_blocks);
 	syslog(LOG_ERR, "    has_clock_drift %d",
 			config.echo_removal_control.has_clock_drift);
 	syslog(LOG_ERR, "    linear_and_stable_echo_path %d",

@@ -27,6 +27,7 @@ module_audio_processing_CXX_OBJECTS = \
 	modules/audio_processing/level_estimator_impl.o \
 	modules/audio_processing/low_cut_filter.o \
 	modules/audio_processing/noise_suppression_impl.o \
+	modules/audio_processing/noise_suppression_proxy.o \
 	modules/audio_processing/residual_echo_detector.o \
 	modules/audio_processing/rms_level.o \
 	modules/audio_processing/splitting_filter.o \
@@ -94,7 +95,6 @@ aec3_CXX_OBJECTS = \
 	modules/audio_processing/aec3/block_delay_buffer.o \
 	modules/audio_processing/aec3/block_framer.o \
 	modules/audio_processing/aec3/block_processor.o \
-	modules/audio_processing/aec3/block_processor2.o \
 	modules/audio_processing/aec3/block_processor_metrics.o \
 	modules/audio_processing/aec3/cascaded_biquad_filter.o \
 	modules/audio_processing/aec3/clockdrift_detector.o \
@@ -120,9 +120,7 @@ aec3_CXX_OBJECTS = \
 	modules/audio_processing/aec3/moving_average.o \
 	modules/audio_processing/aec3/render_buffer.o \
 	modules/audio_processing/aec3/render_delay_buffer.o \
-	modules/audio_processing/aec3/render_delay_buffer2.o \
 	modules/audio_processing/aec3/render_delay_controller.o \
-	modules/audio_processing/aec3/render_delay_controller2.o \
 	modules/audio_processing/aec3/render_delay_controller_metrics.o \
 	modules/audio_processing/aec3/render_reverb_model.o \
 	modules/audio_processing/aec3/render_signal_analyzer.o \
@@ -142,7 +140,6 @@ aec3_CXX_OBJECTS = \
 	modules/audio_processing/aec3/subtractor_output_analyzer.o \
 	modules/audio_processing/aec3/suppression_filter.o \
 	modules/audio_processing/aec3/suppression_gain.o \
-	modules/audio_processing/aec3/suppression_gain_limiter.o \
 	modules/audio_processing/aec3/vector_buffer.o
 
 aec3_factory_CXX_OBJECTS = \

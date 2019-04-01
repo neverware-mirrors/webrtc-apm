@@ -48,7 +48,7 @@ rsync "${OPTIONS[@]}" ${FROM}/third_party/rnnoise \
 
 rsync "${OPTIONS[@]}" --include="*.cc" --include="*.h" --include="audio" \
 	--include="video" --include="transport" --include="units" \
-	--exclude="*" ${FROM}/api/* ${TO}/api
+	--include="task_queue" --exclude="*" ${FROM}/api/* ${TO}/api
 
 # Adjust include path to use libevent header on chroot
 sed -i 's/include "base\/third_party\/libevent\/event\.h"/include <event.h>/' \

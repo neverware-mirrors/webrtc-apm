@@ -43,7 +43,6 @@ static const size_t kStapAHeaderSize = kNalHeaderSize + kLengthFieldSize;
 
 static const char* kSpsValidHistogramName = "WebRTC.Video.H264.SpsValid";
 enum SpsValidEvent {
-  kReceivedSpsPocOk = 0,
   kReceivedSpsVuiOk = 1,
   kReceivedSpsRewritten = 2,
   kReceivedSpsParseFailure = 3,
@@ -135,11 +134,6 @@ RtpPacketizerH264::RtpPacketizerH264(
                                     SpsValidEvent::kSentSpsRewritten,
                                     SpsValidEvent::kSpsRewrittenMax);
           break;
-        case SpsVuiRewriter::ParseResult::kPocOk:
-          RTC_HISTOGRAM_ENUMERATION(kSpsValidHistogramName,
-                                    SpsValidEvent::kSentSpsPocOk,
-                                    SpsValidEvent::kSpsRewrittenMax);
-          break;
         case SpsVuiRewriter::ParseResult::kVuiOk:
           RTC_HISTOGRAM_ENUMERATION(kSpsValidHistogramName,
                                     SpsValidEvent::kSentSpsVuiOk,
@@ -219,10 +213,19 @@ bool RtpPacketizerH264::PacketizeFuA(size_t fragment_index) {
   PayloadSizeLimits limits = limits_;
   // Leave room for the FU-A header.
   limits.max_payload_len -= kFuAHeaderSize;
-  // Ignore single/first/last packet reductions unless it is single/first/last
+  // Update single/first/last packet reductions unless it is single/first/last
   // fragment.
-  if (input_fragments_.size() != 1)
-    limits.single_packet_reduction_len = 0;
+  if (input_fragments_.size() != 1) {
+    // if this fragment is put into a single packet, it might still be the
+    // first or the last packet in the whole sequence of packets.
+    if (fragment_index == input_fragments_.size() - 1) {
+      limits.single_packet_reduction_len = limits_.last_packet_reduction_len;
+    } else if (fragment_index == 0) {
+      limits.single_packet_reduction_len = limits_.first_packet_reduction_len;
+    } else {
+      limits.single_packet_reduction_len = 0;
+    }
+  }
   if (fragment_index != 0)
     limits.first_packet_reduction_len = 0;
   if (fragment_index != input_fragments_.size() - 1)
@@ -548,11 +551,6 @@ bool RtpDepacketizerH264::ProcessStapAOrSingleNalu(
 
             RTC_HISTOGRAM_ENUMERATION(kSpsValidHistogramName,
                                       SpsValidEvent::kReceivedSpsRewritten,
-                                      SpsValidEvent::kSpsRewrittenMax);
-            break;
-          case SpsVuiRewriter::ParseResult::kPocOk:
-            RTC_HISTOGRAM_ENUMERATION(kSpsValidHistogramName,
-                                      SpsValidEvent::kReceivedSpsPocOk,
                                       SpsValidEvent::kSpsRewrittenMax);
             break;
           case SpsVuiRewriter::ParseResult::kVuiOk:

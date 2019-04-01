@@ -4,6 +4,7 @@
  */
 
 #include "api/audio/echo_canceller3_factory.h"
+#include "api/task_queue/default_task_queue_factory.h"
 #include "cras-config/aec_config.h"
 #include "cras-config/apm_config.h"
 #include "modules/audio_processing/aec_dump/aec_dump_factory.h"

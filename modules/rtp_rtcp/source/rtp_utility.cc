@@ -24,7 +24,6 @@
 #include "modules/video_coding/codecs/interface/common_constants.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
-#include "rtc_base/stringutils.h"
 
 namespace webrtc {
 
@@ -434,6 +433,10 @@ void RtpHeaderParser::ParseOneByteExtensionHeader(
           header->extension.hasTransportSequenceNumber = true;
           break;
         }
+        case kRtpExtensionTransportSequenceNumber02:
+          RTC_LOG(WARNING) << "TransportSequenceNumberV2 unsupported by rtp "
+                              "header parser.";
+          break;
         case kRtpExtensionPlayoutDelay: {
           if (len != 2) {
             RTC_LOG(LS_WARNING) << "Incorrect playout delay len: " << len;
@@ -503,7 +506,8 @@ void RtpHeaderParser::ParseOneByteExtensionHeader(
           header->extension.mid.Set(rtc::MakeArrayView(ptr, len + 1));
           break;
         }
-        case kRtpExtensionGenericFrameDescriptor:
+        case kRtpExtensionGenericFrameDescriptor00:
+        case kRtpExtensionGenericFrameDescriptor01:
           RTC_LOG(WARNING)
               << "RtpGenericFrameDescriptor unsupported by rtp header parser.";
           break;

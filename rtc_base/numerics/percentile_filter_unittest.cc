@@ -8,11 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
+#include <stdlib.h>
 #include <algorithm>
 #include <climits>
+#include <cstdint>
 #include <random>
 
-#include "rtc_base/constructormagic.h"
+#include "rtc_base/constructor_magic.h"
 #include "rtc_base/numerics/percentile_filter.h"
 #include "test/gtest.h"
 
@@ -32,9 +34,9 @@ class PercentileFilterTest : public ::testing::TestWithParam<float> {
   RTC_DISALLOW_COPY_AND_ASSIGN(PercentileFilterTest);
 };
 
-INSTANTIATE_TEST_CASE_P(PercentileFilterTests,
-                        PercentileFilterTest,
-                        ::testing::Values(0.0f, 0.1f, 0.5f, 0.9f, 1.0f));
+INSTANTIATE_TEST_SUITE_P(PercentileFilterTests,
+                         PercentileFilterTest,
+                         ::testing::Values(0.0f, 0.1f, 0.5f, 0.9f, 1.0f));
 
 TEST(PercentileFilterTest, MinFilter) {
   PercentileFilter<int64_t> filter(0.0f);

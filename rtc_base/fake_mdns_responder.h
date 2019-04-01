@@ -15,9 +15,11 @@
 #include <memory>
 #include <string>
 
+#include "rtc_base/async_invoker.h"
+#include "rtc_base/ip_address.h"
+#include "rtc_base/location.h"
 #include "rtc_base/mdns_responder_interface.h"
-
-#include "rtc_base/helpers.h"
+#include "rtc_base/thread.h"
 
 namespace webrtc {
 
@@ -48,6 +50,15 @@ class FakeMdnsResponder : public MdnsResponderInterface {
     bool result = it != addr_name_map_.end();
     invoker_.AsyncInvoke<void>(RTC_FROM_HERE, thread_,
                                [callback, result]() { callback(result); });
+  }
+
+  rtc::IPAddress GetMappedAddressForName(const std::string& name) const {
+    for (const auto& addr_name_pair : addr_name_map_) {
+      if (addr_name_pair.second == name) {
+        return addr_name_pair.first;
+      }
+    }
+    return rtc::IPAddress();
   }
 
  private:

@@ -19,7 +19,7 @@
 #include "api/array_view.h"
 #include "api/audio/echo_canceller3_config.h"
 #include "modules/audio_processing/aec3/aec3_common.h"
-#include "rtc_base/constructormagic.h"
+#include "rtc_base/constructor_magic.h"
 
 namespace webrtc {
 
@@ -97,10 +97,8 @@ class FilterAnalyzer {
 
   static int instance_count_;
   std::unique_ptr<ApmDataDumper> data_dumper_;
-  const bool use_preprocessed_filter_;
   const bool bounded_erl_;
   const float default_gain_;
-  const bool use_incremental_analysis_;
   std::vector<float> h_highpass_;
   int delay_blocks_ = 0;
   size_t blocks_since_reset_ = 0;

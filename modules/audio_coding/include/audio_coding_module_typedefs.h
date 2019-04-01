@@ -80,6 +80,7 @@ struct NetworkStatistics {
   uint64_t concealedSamples;
   uint64_t concealmentEvents;
   uint64_t jitterBufferDelayMs;
+  uint64_t jitterBufferEmittedCount;
   // Stats below DO NOT correspond directly to anything in the WebRTC stats
   // Loss rate (network + late); fraction between 0 and 1, scaled to Q14.
   uint16_t currentPacketLossRate;
@@ -121,6 +122,8 @@ struct NetworkStatistics {
   uint64_t packetBufferFlushes;
   // number of samples expanded due to delayed packets
   uint64_t delayedPacketOutageSamples;
+  // arrival delay of incoming packets
+  uint64_t relativePacketArrivalDelayMs;
 };
 
 }  // namespace webrtc

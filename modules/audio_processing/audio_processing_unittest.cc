@@ -28,21 +28,20 @@
 #include "modules/audio_processing/test/test_utils.h"
 #include "rtc_base/arraysize.h"
 #include "rtc_base/checks.h"
-#include "rtc_base/fakeclock.h"
+#include "rtc_base/fake_clock.h"
 #include "rtc_base/gtest_prod_util.h"
 #include "rtc_base/ignore_wundef.h"
 #include "rtc_base/numerics/safe_conversions.h"
 #include "rtc_base/numerics/safe_minmax.h"
 #include "rtc_base/protobuf_utils.h"
-#include "rtc_base/refcountedobject.h"
+#include "rtc_base/ref_counted_object.h"
 #include "rtc_base/strings/string_builder.h"
 #include "rtc_base/swap_queue.h"
 #include "rtc_base/system/arch.h"
 #include "rtc_base/task_queue.h"
 #include "rtc_base/thread.h"
-#include "system_wrappers/include/event_wrapper.h"
 #include "test/gtest.h"
-#include "test/testsupport/fileutils.h"
+#include "test/testsupport/file_utils.h"
 
 RTC_PUSH_IGNORING_WUNDEF()
 #ifdef WEBRTC_ANDROID_PLATFORM_BUILD
@@ -183,10 +182,11 @@ void EnableAllAPComponents(AudioProcessing* ap) {
   apm_config.echo_canceller.enabled = true;
 #if defined(WEBRTC_AUDIOPROC_FIXED_PROFILE)
   apm_config.echo_canceller.mobile_mode = true;
-
   EXPECT_NOERR(ap->gain_control()->set_mode(GainControl::kAdaptiveDigital));
   EXPECT_NOERR(ap->gain_control()->Enable(true));
 #elif defined(WEBRTC_AUDIOPROC_FLOAT_PROFILE)
+  // TODO(peah): Update tests to instead use AEC3.
+  apm_config.echo_canceller.use_legacy_aec = true;
   apm_config.echo_canceller.mobile_mode = false;
   apm_config.echo_canceller.legacy_moderate_suppression_level = true;
 
@@ -196,6 +196,7 @@ void EnableAllAPComponents(AudioProcessing* ap) {
 #endif
 
   apm_config.high_pass_filter.enabled = true;
+  apm_config.level_estimation.enabled = true;
   ap->ApplyConfig(apm_config);
 
   EXPECT_NOERR(ap->level_estimator()->Enable(true));
@@ -720,28 +721,24 @@ void ApmTest::StreamParametersTest(Format format) {
 
   // -- Missing delay --
   EXPECT_EQ(apm_->kNoError, ProcessStreamChooser(format));
-  EXPECT_EQ(apm_->kStreamParameterNotSetError,
-            ProcessStreamChooser(format));
+  EXPECT_EQ(apm_->kNoError, ProcessStreamChooser(format));
 
   // Resets after successful ProcessStream().
   EXPECT_EQ(apm_->kNoError, apm_->set_stream_delay_ms(100));
   EXPECT_EQ(apm_->kNoError, ProcessStreamChooser(format));
-  EXPECT_EQ(apm_->kStreamParameterNotSetError,
-            ProcessStreamChooser(format));
+  EXPECT_EQ(apm_->kNoError, ProcessStreamChooser(format));
 
   // Other stream parameters set correctly.
   EXPECT_EQ(apm_->kNoError, apm_->gain_control()->Enable(true));
   EXPECT_EQ(apm_->kNoError,
             apm_->gain_control()->set_stream_analog_level(127));
-  EXPECT_EQ(apm_->kStreamParameterNotSetError,
-            ProcessStreamChooser(format));
+  EXPECT_EQ(apm_->kNoError, ProcessStreamChooser(format));
   EXPECT_EQ(apm_->kNoError, apm_->gain_control()->Enable(false));
 
   // -- No stream parameters --
   EXPECT_EQ(apm_->kNoError,
             AnalyzeReverseStreamChooser(format));
-  EXPECT_EQ(apm_->kStreamParameterNotSetError,
-            ProcessStreamChooser(format));
+  EXPECT_EQ(apm_->kNoError, ProcessStreamChooser(format));
 
   // -- All there --
   EXPECT_EQ(apm_->kNoError, apm_->set_stream_delay_ms(100));
@@ -873,6 +870,8 @@ TEST_F(ApmTest, DISABLED_EchoCancellationReportsCorrectDelays) {
   // Enable AEC only.
   AudioProcessing::Config apm_config = apm_->GetConfig();
   apm_config.echo_canceller.enabled = true;
+  // TODO(peah): Update tests to instead use AEC3.
+  apm_config.echo_canceller.use_legacy_aec = true;
   apm_config.echo_canceller.mobile_mode = false;
   apm_->ApplyConfig(apm_config);
   Config config;
@@ -1277,6 +1276,8 @@ TEST_F(ApmTest, AllProcessingDisabledByDefault) {
   AudioProcessing::Config config = apm_->GetConfig();
   EXPECT_FALSE(config.echo_canceller.enabled);
   EXPECT_FALSE(config.high_pass_filter.enabled);
+  EXPECT_FALSE(config.level_estimation.enabled);
+  EXPECT_FALSE(config.voice_detection.enabled);
   EXPECT_FALSE(apm_->gain_control()->is_enabled());
   EXPECT_FALSE(apm_->level_estimator()->is_enabled());
   EXPECT_FALSE(apm_->noise_suppression()->is_enabled());
@@ -1398,21 +1399,38 @@ TEST_F(ApmTest, SplittingFilter) {
   EXPECT_TRUE(FrameDataAreEqual(*frame_, frame_copy));
   EXPECT_EQ(apm_->kNoError, apm_->voice_detection()->Enable(false));
 
-  // 4. Both VAD and the level estimator are enabled...
+  // 4. Only GetStatistics-reporting VAD is enabled...
+  SetFrameTo(frame_, 1000);
+  frame_copy.CopyFrom(*frame_);
+  auto apm_config = apm_->GetConfig();
+  apm_config.voice_detection.enabled = true;
+  apm_->ApplyConfig(apm_config);
+  EXPECT_EQ(apm_->kNoError, apm_->ProcessStream(frame_));
+  EXPECT_EQ(apm_->kNoError, apm_->ProcessStream(frame_));
+  EXPECT_TRUE(FrameDataAreEqual(*frame_, frame_copy));
+  apm_config.voice_detection.enabled = false;
+  apm_->ApplyConfig(apm_config);
+
+  // 5. Both VADs and the level estimator are enabled...
   SetFrameTo(frame_, 1000);
   frame_copy.CopyFrom(*frame_);
   EXPECT_EQ(apm_->kNoError, apm_->level_estimator()->Enable(true));
   EXPECT_EQ(apm_->kNoError, apm_->voice_detection()->Enable(true));
+  apm_config.voice_detection.enabled = true;
+  apm_->ApplyConfig(apm_config);
   EXPECT_EQ(apm_->kNoError, apm_->ProcessStream(frame_));
   EXPECT_EQ(apm_->kNoError, apm_->ProcessStream(frame_));
   EXPECT_TRUE(FrameDataAreEqual(*frame_, frame_copy));
   EXPECT_EQ(apm_->kNoError, apm_->level_estimator()->Enable(false));
   EXPECT_EQ(apm_->kNoError, apm_->voice_detection()->Enable(false));
+  apm_config.voice_detection.enabled = false;
+  apm_->ApplyConfig(apm_config);
 
   // Check the test is valid. We should have distortion from the filter
   // when AEC is enabled (which won't affect the audio).
-  AudioProcessing::Config apm_config = apm_->GetConfig();
   apm_config.echo_canceller.enabled = true;
+  // TODO(peah): Update tests to instead use AEC3.
+  apm_config.echo_canceller.use_legacy_aec = true;
   apm_config.echo_canceller.mobile_mode = false;
   apm_->ApplyConfig(apm_config);
   frame_->samples_per_channel_ = 320;
@@ -1836,6 +1854,7 @@ TEST_F(ApmTest, Process) {
     int analog_level_average = 0;
     int max_output_average = 0;
     float ns_speech_prob_average = 0.0f;
+    float rms_dbfs_average = 0.0f;
 #if defined(WEBRTC_AUDIOPROC_FLOAT_PROFILE)
   int stats_index = 0;
 #endif
@@ -1870,6 +1889,9 @@ TEST_F(ApmTest, Process) {
       }
 
       ns_speech_prob_average += apm_->noise_suppression()->speech_probability();
+      AudioProcessingStats stats =
+          apm_->GetStatistics(/*has_remote_tracks=*/false);
+      rms_dbfs_average += *stats.output_rms_dbfs;
 
       size_t frame_size = frame_->samples_per_channel_ * frame_->num_channels_;
       size_t write_count = fwrite(frame_->data(),
@@ -1905,11 +1927,6 @@ TEST_F(ApmTest, Process) {
         const int32_t delay_standard_deviation_ms =
             stats.delay_standard_deviation_ms.value_or(-1.0);
 
-        // Get RMS.
-        int rms_level = apm_->level_estimator()->RMS();
-        EXPECT_LE(0, rms_level);
-        EXPECT_GE(127, rms_level);
-
         if (!write_ref_data) {
           const audioproc::Test::EchoMetrics& reference =
               test->echo_metrics(stats_index);
@@ -1930,8 +1947,6 @@ TEST_F(ApmTest, Process) {
           EXPECT_EQ(reference_delay.median(), delay_median_ms);
           EXPECT_EQ(reference_delay.std(), delay_standard_deviation_ms);
 
-          EXPECT_EQ(test->rms_level(stats_index), rms_level);
-
           ++stats_index;
         } else {
           audioproc::Test::EchoMetrics* message_echo = test->add_echo_metrics();
@@ -1947,8 +1962,6 @@ TEST_F(ApmTest, Process) {
               test->add_delay_metrics();
           message_delay->set_median(delay_median_ms);
           message_delay->set_std(delay_standard_deviation_ms);
-
-          test->add_rms_level(rms_level);
         }
       }
 #endif  // defined(WEBRTC_AUDIOPROC_FLOAT_PROFILE).
@@ -1956,6 +1969,7 @@ TEST_F(ApmTest, Process) {
     max_output_average /= frame_count;
     analog_level_average /= frame_count;
     ns_speech_prob_average /= frame_count;
+    rms_dbfs_average /= frame_count;
 
     if (!write_ref_data) {
       const int kIntNear = 1;
@@ -1990,6 +2004,7 @@ TEST_F(ApmTest, Process) {
       EXPECT_NEAR(test->ns_speech_probability_average(),
                   ns_speech_prob_average,
                   kFloatNear);
+      EXPECT_NEAR(test->rms_dbfs_average(), rms_dbfs_average, kFloatNear);
 #endif
     } else {
       test->set_has_voice_count(has_voice_count);
@@ -2002,6 +2017,7 @@ TEST_F(ApmTest, Process) {
       EXPECT_LE(0.0f, ns_speech_prob_average);
       EXPECT_GE(1.0f, ns_speech_prob_average);
       test->set_ns_speech_probability_average(ns_speech_prob_average);
+      test->set_rms_dbfs_average(rms_dbfs_average);
 #endif
     }
 
@@ -2398,7 +2414,7 @@ TEST_P(AudioProcessingTest, Formats) {
 }
 
 #if defined(WEBRTC_AUDIOPROC_FLOAT_PROFILE)
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     CommonFormats,
     AudioProcessingTest,
     testing::Values(std::make_tuple(48000, 48000, 48000, 48000, 0, 0),
@@ -2428,11 +2444,11 @@ INSTANTIATE_TEST_CASE_P(
                     std::make_tuple(44100, 16000, 16000, 16000, 25, 0),
 
                     std::make_tuple(32000, 48000, 48000, 48000, 30, 0),
-                    std::make_tuple(32000, 48000, 32000, 48000, 35, 30),
+                    std::make_tuple(32000, 48000, 32000, 48000, 32, 30),
                     std::make_tuple(32000, 48000, 16000, 48000, 30, 20),
-                    std::make_tuple(32000, 44100, 48000, 44100, 20, 20),
-                    std::make_tuple(32000, 44100, 32000, 44100, 20, 15),
-                    std::make_tuple(32000, 44100, 16000, 44100, 20, 15),
+                    std::make_tuple(32000, 44100, 48000, 44100, 19, 20),
+                    std::make_tuple(32000, 44100, 32000, 44100, 19, 15),
+                    std::make_tuple(32000, 44100, 16000, 44100, 19, 15),
                     std::make_tuple(32000, 32000, 48000, 32000, 40, 35),
                     std::make_tuple(32000, 32000, 32000, 32000, 0, 0),
                     std::make_tuple(32000, 32000, 16000, 32000, 40, 20),
@@ -2440,21 +2456,21 @@ INSTANTIATE_TEST_CASE_P(
                     std::make_tuple(32000, 16000, 32000, 16000, 25, 20),
                     std::make_tuple(32000, 16000, 16000, 16000, 25, 0),
 
-                    std::make_tuple(16000, 48000, 48000, 48000, 25, 0),
-                    std::make_tuple(16000, 48000, 32000, 48000, 25, 30),
-                    std::make_tuple(16000, 48000, 16000, 48000, 25, 20),
+                    std::make_tuple(16000, 48000, 48000, 48000, 24, 0),
+                    std::make_tuple(16000, 48000, 32000, 48000, 24, 30),
+                    std::make_tuple(16000, 48000, 16000, 48000, 24, 20),
                     std::make_tuple(16000, 44100, 48000, 44100, 15, 20),
                     std::make_tuple(16000, 44100, 32000, 44100, 15, 15),
                     std::make_tuple(16000, 44100, 16000, 44100, 15, 15),
                     std::make_tuple(16000, 32000, 48000, 32000, 25, 35),
                     std::make_tuple(16000, 32000, 32000, 32000, 25, 0),
                     std::make_tuple(16000, 32000, 16000, 32000, 25, 20),
-                    std::make_tuple(16000, 16000, 48000, 16000, 40, 20),
+                    std::make_tuple(16000, 16000, 48000, 16000, 39, 20),
                     std::make_tuple(16000, 16000, 32000, 16000, 40, 20),
                     std::make_tuple(16000, 16000, 16000, 16000, 0, 0)));
 
 #elif defined(WEBRTC_AUDIOPROC_FIXED_PROFILE)
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     CommonFormats,
     AudioProcessingTest,
     testing::Values(std::make_tuple(48000, 48000, 48000, 48000, 20, 0),
@@ -2669,12 +2685,14 @@ std::unique_ptr<AudioProcessing> CreateApm(bool use_AEC2) {
   }
 
   // Disable all components except for an AEC and the residual echo detector.
+  // TODO(peah): Update this to also work on AEC3.
   AudioProcessing::Config apm_config;
   apm_config.residual_echo_detector.enabled = true;
   apm_config.high_pass_filter.enabled = false;
   apm_config.gain_controller2.enabled = false;
   apm_config.echo_canceller.enabled = true;
   apm_config.echo_canceller.mobile_mode = !use_AEC2;
+  apm_config.echo_canceller.use_legacy_aec = use_AEC2;
   apm->ApplyConfig(apm_config);
   EXPECT_EQ(apm->gain_control()->Enable(false), 0);
   EXPECT_EQ(apm->level_estimator()->Enable(false), 0);
@@ -2693,11 +2711,16 @@ TEST(MAYBE_ApmStatistics, AEC2EnabledTest) {
   // Set up APM with AEC2 and process some audio.
   std::unique_ptr<AudioProcessing> apm = CreateApm(true);
   ASSERT_TRUE(apm);
+  AudioProcessing::Config apm_config;
+  apm_config.echo_canceller.enabled = true;
+  // TODO(peah): Update tests to instead use AEC3.
+  apm_config.echo_canceller.use_legacy_aec = true;
+  apm->ApplyConfig(apm_config);
 
   // Set up an audioframe.
   AudioFrame frame;
   frame.num_channels_ = 1;
-  SetFrameSampleRate(&frame, AudioProcessing::NativeRate::kSampleRate48kHz);
+  SetFrameSampleRate(&frame, AudioProcessing::NativeRate::kSampleRate32kHz);
 
   // Fill the audio frame with a sawtooth pattern.
   int16_t* ptr = frame.mutable_data();
@@ -2756,7 +2779,7 @@ TEST(MAYBE_ApmStatistics, AECMEnabledTest) {
   // Set up an audioframe.
   AudioFrame frame;
   frame.num_channels_ = 1;
-  SetFrameSampleRate(&frame, AudioProcessing::NativeRate::kSampleRate48kHz);
+  SetFrameSampleRate(&frame, AudioProcessing::NativeRate::kSampleRate32kHz);
 
   // Fill the audio frame with a sawtooth pattern.
   int16_t* ptr = frame.mutable_data();
@@ -2810,7 +2833,7 @@ TEST(ApmStatistics, ReportOutputRmsDbfs) {
   // Set up an audioframe.
   AudioFrame frame;
   frame.num_channels_ = 1;
-  SetFrameSampleRate(&frame, AudioProcessing::NativeRate::kSampleRate48kHz);
+  SetFrameSampleRate(&frame, AudioProcessing::NativeRate::kSampleRate32kHz);
 
   // Fill the audio frame with a sawtooth pattern.
   int16_t* ptr = frame.mutable_data();
@@ -2838,5 +2861,42 @@ TEST(ApmStatistics, ReportOutputRmsDbfs) {
   apm->ApplyConfig(config);
   EXPECT_EQ(apm->ProcessStream(&frame), 0);
   EXPECT_FALSE(apm->GetStatistics(false).output_rms_dbfs);
+}
+
+TEST(ApmStatistics, ReportHasVoice) {
+  ProcessingConfig processing_config = {
+      {{32000, 1}, {32000, 1}, {32000, 1}, {32000, 1}}};
+  AudioProcessing::Config config;
+
+  // Set up an audioframe.
+  AudioFrame frame;
+  frame.num_channels_ = 1;
+  SetFrameSampleRate(&frame, AudioProcessing::NativeRate::kSampleRate32kHz);
+
+  // Fill the audio frame with a sawtooth pattern.
+  int16_t* ptr = frame.mutable_data();
+  for (size_t i = 0; i < frame.kMaxDataSizeSamples; i++) {
+    ptr[i] = 10000 * ((i % 3) - 1);
+  }
+
+  std::unique_ptr<AudioProcessing> apm(AudioProcessingBuilder().Create());
+  apm->Initialize(processing_config);
+
+  // If not enabled, no metric should be reported.
+  EXPECT_EQ(apm->ProcessStream(&frame), 0);
+  EXPECT_FALSE(apm->GetStatistics(false).voice_detected);
+
+  // If enabled, metrics should be reported.
+  config.voice_detection.enabled = true;
+  apm->ApplyConfig(config);
+  EXPECT_EQ(apm->ProcessStream(&frame), 0);
+  auto stats = apm->GetStatistics(false);
+  EXPECT_TRUE(stats.voice_detected);
+
+  // If re-disabled, the value is again not reported.
+  config.voice_detection.enabled = false;
+  apm->ApplyConfig(config);
+  EXPECT_EQ(apm->ProcessStream(&frame), 0);
+  EXPECT_FALSE(apm->GetStatistics(false).voice_detected);
 }
 }  // namespace webrtc

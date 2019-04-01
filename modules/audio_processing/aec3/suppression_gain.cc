@@ -18,7 +18,7 @@
 #include "modules/audio_processing/aec3/moving_average.h"
 #include "modules/audio_processing/aec3/vector_math.h"
 #include "modules/audio_processing/logging/apm_data_dumper.h"
-#include "rtc_base/atomicops.h"
+#include "rtc_base/atomic_ops.h"
 #include "rtc_base/checks.h"
 
 namespace webrtc {
@@ -345,14 +345,6 @@ void SuppressionGain::GetGain(
   LowerBandGain(low_noise_render, aec_state, suppressor_input_spectrum,
                 nearend_average, residual_echo_spectrum, comfort_noise_spectrum,
                 low_band_gain);
-
-  // Limit the gain of the lower bands during start up and after resets.
-  const float gain_upper_bound = aec_state.SuppressionGainLimit();
-  if (gain_upper_bound < 1.f) {
-    for (size_t k = 0; k < low_band_gain->size(); ++k) {
-      (*low_band_gain)[k] = std::min((*low_band_gain)[k], gain_upper_bound);
-    }
-  }
 
   // Compute the gain for the upper bands.
   const absl::optional<int> narrow_peak_band =

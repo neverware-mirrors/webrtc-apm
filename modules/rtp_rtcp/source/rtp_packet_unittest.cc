@@ -10,6 +10,7 @@
 #include "modules/rtp_rtcp/source/rtp_packet_received.h"
 #include "modules/rtp_rtcp/source/rtp_packet_to_send.h"
 
+#include "common_video/test/utilities.h"
 #include "modules/rtp_rtcp/include/rtp_header_extension_map.h"
 #include "modules/rtp_rtcp/source/rtp_header_extensions.h"
 #include "rtc_base/random.h"
@@ -185,35 +186,6 @@ constexpr uint8_t kPacketWithLegacyTimingExtension[] = {
     0x04, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00};
 // clang-format on
-
-HdrMetadata CreateTestHdrMetadata() {
-  // Random but reasonable HDR metadata.
-  HdrMetadata hdr_metadata;
-  hdr_metadata.mastering_metadata.luminance_max = 2000.0;
-  hdr_metadata.mastering_metadata.luminance_min = 2.0001;
-  hdr_metadata.mastering_metadata.primary_r.x = 0.3003;
-  hdr_metadata.mastering_metadata.primary_r.y = 0.4004;
-  hdr_metadata.mastering_metadata.primary_g.x = 0.3201;
-  hdr_metadata.mastering_metadata.primary_g.y = 0.4604;
-  hdr_metadata.mastering_metadata.primary_b.x = 0.3409;
-  hdr_metadata.mastering_metadata.primary_b.y = 0.4907;
-  hdr_metadata.mastering_metadata.white_point.x = 0.4103;
-  hdr_metadata.mastering_metadata.white_point.y = 0.4806;
-  hdr_metadata.max_content_light_level = 2345;
-  hdr_metadata.max_frame_average_light_level = 1789;
-  return hdr_metadata;
-}
-
-ColorSpace CreateTestColorSpace(bool with_hdr_metadata) {
-  ColorSpace color_space(
-      ColorSpace::PrimaryID::kBT709, ColorSpace::TransferID::kGAMMA22,
-      ColorSpace::MatrixID::kSMPTE2085, ColorSpace::RangeID::kFull);
-  if (with_hdr_metadata) {
-    HdrMetadata hdr_metadata = CreateTestHdrMetadata();
-    color_space.set_hdr_metadata(&hdr_metadata);
-  }
-  return color_space;
-}
 
 void TestCreateAndParseColorSpaceExtension(bool with_hdr_metadata) {
   // Create packet with extension.
@@ -853,6 +825,131 @@ TEST(RtpPacketTest, CreateAndParseColorSpaceExtension) {
 
 TEST(RtpPacketTest, CreateAndParseColorSpaceExtensionWithoutHdrMetadata) {
   TestCreateAndParseColorSpaceExtension(/*with_hdr_metadata=*/false);
+}
+
+TEST(RtpPacketTest, CreateAndParseTransportSequenceNumber) {
+  // Create a packet with transport sequence number extension populated.
+  RtpPacketToSend::ExtensionManager extensions;
+  constexpr int kExtensionId = 1;
+  extensions.Register<TransportSequenceNumber>(kExtensionId);
+  RtpPacketToSend send_packet(&extensions);
+  send_packet.SetPayloadType(kPayloadType);
+  send_packet.SetSequenceNumber(kSeqNum);
+  send_packet.SetTimestamp(kTimestamp);
+  send_packet.SetSsrc(kSsrc);
+
+  constexpr int kTransportSequenceNumber = 12345;
+  send_packet.SetExtension<TransportSequenceNumber>(kTransportSequenceNumber);
+
+  // Serialize the packet and then parse it again.
+  RtpPacketReceived receive_packet(&extensions);
+  EXPECT_TRUE(receive_packet.Parse(send_packet.Buffer()));
+
+  uint16_t received_transport_sequeunce_number;
+  EXPECT_TRUE(receive_packet.GetExtension<TransportSequenceNumber>(
+      &received_transport_sequeunce_number));
+  EXPECT_EQ(received_transport_sequeunce_number, kTransportSequenceNumber);
+}
+
+TEST(RtpPacketTest, CreateAndParseTransportSequenceNumberV2) {
+  // Create a packet with transport sequence number V2 extension populated.
+  // No feedback request means that the extension will be two bytes unless it's
+  // pre-allocated.
+  RtpPacketToSend::ExtensionManager extensions;
+  constexpr int kExtensionId = 1;
+  extensions.Register<TransportSequenceNumberV2>(kExtensionId);
+  RtpPacketToSend send_packet(&extensions);
+  send_packet.SetPayloadType(kPayloadType);
+  send_packet.SetSequenceNumber(kSeqNum);
+  send_packet.SetTimestamp(kTimestamp);
+  send_packet.SetSsrc(kSsrc);
+
+  constexpr int kTransportSequenceNumber = 12345;
+  send_packet.SetExtension<TransportSequenceNumberV2>(kTransportSequenceNumber,
+                                                      absl::nullopt);
+  EXPECT_EQ(send_packet.GetRawExtension<TransportSequenceNumberV2>().size(),
+            2u);
+
+  // Serialize the packet and then parse it again.
+  RtpPacketReceived receive_packet(&extensions);
+  EXPECT_TRUE(receive_packet.Parse(send_packet.Buffer()));
+
+  uint16_t received_transport_sequeunce_number;
+  absl::optional<FeedbackRequest> received_feedback_request;
+  EXPECT_TRUE(receive_packet.GetExtension<TransportSequenceNumberV2>(
+      &received_transport_sequeunce_number, &received_feedback_request));
+  EXPECT_EQ(received_transport_sequeunce_number, kTransportSequenceNumber);
+  EXPECT_FALSE(received_feedback_request);
+}
+
+TEST(RtpPacketTest, CreateAndParseTransportSequenceNumberV2Preallocated) {
+  // Create a packet with transport sequence number V2 extension populated.
+  // No feedback request means that the extension could be two bytes, but since
+  // it's pre-allocated we don't know if it is with or without feedback request
+  // therefore the size is four bytes.
+  RtpPacketToSend::ExtensionManager extensions;
+  constexpr int kExtensionId = 1;
+  extensions.Register<TransportSequenceNumberV2>(kExtensionId);
+  RtpPacketToSend send_packet(&extensions);
+  send_packet.SetPayloadType(kPayloadType);
+  send_packet.SetSequenceNumber(kSeqNum);
+  send_packet.SetTimestamp(kTimestamp);
+  send_packet.SetSsrc(kSsrc);
+
+  constexpr int kTransportSequenceNumber = 12345;
+  constexpr absl::optional<FeedbackRequest> kNoFeedbackRequest =
+      FeedbackRequest{/*include_timestamps=*/false, /*sequence_count=*/0};
+  send_packet.ReserveExtension<TransportSequenceNumberV2>();
+  send_packet.SetExtension<TransportSequenceNumberV2>(kTransportSequenceNumber,
+                                                      kNoFeedbackRequest);
+  EXPECT_EQ(send_packet.GetRawExtension<TransportSequenceNumberV2>().size(),
+            4u);
+
+  // Serialize the packet and then parse it again.
+  RtpPacketReceived receive_packet(&extensions);
+  EXPECT_TRUE(receive_packet.Parse(send_packet.Buffer()));
+
+  uint16_t received_transport_sequeunce_number;
+  absl::optional<FeedbackRequest> received_feedback_request;
+  EXPECT_TRUE(receive_packet.GetExtension<TransportSequenceNumberV2>(
+      &received_transport_sequeunce_number, &received_feedback_request));
+  EXPECT_EQ(received_transport_sequeunce_number, kTransportSequenceNumber);
+  EXPECT_FALSE(received_feedback_request);
+}
+
+TEST(RtpPacketTest,
+     CreateAndParseTransportSequenceNumberV2WithFeedbackRequest) {
+  // Create a packet with TransportSequenceNumberV2 extension populated.
+  RtpPacketToSend::ExtensionManager extensions;
+  constexpr int kExtensionId = 1;
+  extensions.Register<TransportSequenceNumberV2>(kExtensionId);
+  RtpPacketToSend send_packet(&extensions);
+  send_packet.SetPayloadType(kPayloadType);
+  send_packet.SetSequenceNumber(kSeqNum);
+  send_packet.SetTimestamp(kTimestamp);
+  send_packet.SetSsrc(kSsrc);
+
+  constexpr int kTransportSequenceNumber = 12345;
+  constexpr absl::optional<FeedbackRequest> kFeedbackRequest =
+      FeedbackRequest{/*include_timestamps=*/true, /*sequence_count=*/3};
+  send_packet.SetExtension<TransportSequenceNumberV2>(kTransportSequenceNumber,
+                                                      kFeedbackRequest);
+
+  // Serialize the packet and then parse it again.
+  RtpPacketReceived receive_packet(&extensions);
+  EXPECT_TRUE(receive_packet.Parse(send_packet.Buffer()));
+
+  // Parse transport sequence number and feedback request.
+  uint16_t received_transport_sequeunce_number;
+  absl::optional<FeedbackRequest> received_feedback_request;
+  EXPECT_TRUE(receive_packet.GetExtension<TransportSequenceNumberV2>(
+      &received_transport_sequeunce_number, &received_feedback_request));
+  EXPECT_EQ(received_transport_sequeunce_number, kTransportSequenceNumber);
+  ASSERT_TRUE(received_feedback_request);
+  EXPECT_EQ(received_feedback_request->include_timestamps,
+            kFeedbackRequest->include_timestamps);
+  EXPECT_EQ(received_feedback_request->sequence_count,
+            kFeedbackRequest->sequence_count);
 }
 
 }  // namespace webrtc

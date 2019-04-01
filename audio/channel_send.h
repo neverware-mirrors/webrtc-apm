@@ -17,7 +17,7 @@
 
 #include "api/audio/audio_frame.h"
 #include "api/audio_codecs/audio_encoder.h"
-#include "api/crypto/cryptooptions.h"
+#include "api/crypto/crypto_options.h"
 #include "api/media_transport_interface.h"
 #include "modules/rtp_rtcp/include/rtp_rtcp.h"
 #include "rtc_base/function_view.h"
@@ -63,8 +63,13 @@ class ChannelSendInterface {
                           std::unique_ptr<AudioEncoder> encoder) = 0;
   virtual void ModifyEncoder(
       rtc::FunctionView<void(std::unique_ptr<AudioEncoder>*)> modifier) = 0;
+  virtual void CallEncoder(rtc::FunctionView<void(AudioEncoder*)> modifier) = 0;
 
   virtual void SetLocalSSRC(uint32_t ssrc) = 0;
+  // Use 0 to indicate that the extension should not be registered.
+  virtual void SetRid(const std::string& rid,
+                      int extension_id,
+                      int repaired_extension_id) = 0;
   virtual void SetMid(const std::string& mid, int extension_id) = 0;
   virtual void SetRTCP_CNAME(absl::string_view c_name) = 0;
   virtual void SetExtmapAllowMixed(bool extmap_allow_mixed) = 0;
@@ -85,7 +90,6 @@ class ChannelSendInterface {
 
   virtual void ProcessAndEncodeAudio(
       std::unique_ptr<AudioFrame> audio_frame) = 0;
-  virtual void SetTransportOverhead(size_t transport_overhead_per_packet) = 0;
   virtual RtpRtcp* GetRtpRtcp() const = 0;
 
   virtual void OnTwccBasedUplinkPacketLossRate(float packet_loss_rate) = 0;
@@ -111,9 +115,11 @@ class ChannelSendInterface {
 };
 
 std::unique_ptr<ChannelSendInterface> CreateChannelSend(
+    Clock* clock,
     rtc::TaskQueue* encoder_queue,
     ProcessThread* module_process_thread,
     MediaTransportInterface* media_transport,
+    OverheadObserver* overhead_observer,
     Transport* rtp_transport,
     RtcpRttStats* rtcp_rtt_stats,
     RtcEventLog* rtc_event_log,

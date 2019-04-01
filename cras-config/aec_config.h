@@ -10,8 +10,6 @@
 
 #include "api/audio/echo_canceller3_config.h"
 
-#define AEC_BUFFERING_USE_NEW_RENDER_BUFFERING "buffering:use_new_render_buffering"
-#define AEC_BUFFERING_USE_NEW_RENDER_BUFFERING_VALUE 1
 #define AEC_BUFFERING_EXCESS_RENDER_DETECTION_INTERVAL_BLOCKS \
 	"buffering:excess_render_detection_interval_blocks"
 #define AEC_BUFFERING_EXCESS_RENDER_DETECTION_INTERVAL_BLOCKS_VALUE 250
@@ -25,18 +23,10 @@
 #define AEC_DELAY_DOWN_SAMPLING_FACTOR_VALUE 4
 #define AEC_DELAY_NUM_FILTERS "delay:num_filters"
 #define AEC_DELAY_NUM_FILTERS_VALUE 5
-#define AEC_DELAY_API_CALL_JITTER_BLOCKS "delay:api_call_jitter_blocks"
-#define AEC_DELAY_API_CALL_JITTER_BLOCKS_VALUE 26
-#define AEC_DELAY_MIN_ECHO_PATH_DELAY_BLOCKS "delay:min_echo_path_delay_blocks"
-#define AEC_DELAY_MIN_ECHO_PATH_DELAY_BLOCKS_VALUE 0
-#define AEC_DELAY_DELAY_HEADROOM_BLOCKS "delay:delay_headroom_blocks"
-#define AEC_DELAY_DELAY_HEADROOM_BLOCKS_VALUE 2
-#define AEC_DELAY_HYSTERESIS_LIMIT_1_BLOCKS "delay:hysteresis_limit_1_blocks"
-#define AEC_DELAY_HYSTERESIS_LIMIT_1_BLOCKS_VALUE 1
-#define AEC_DELAY_HYSTERESIS_LIMIT_2_BLOCKS "delay:hysteresis_limit_2_blocks"
-#define AEC_DELAY_HYSTERESIS_LIMIT_2_BLOCKS_VALUE 1
-#define AEC_DELAY_SKEW_HYSTERESIS_BLOCKS "delay:skew_hysteresis_blocks"
-#define AEC_DELAY_SKEW_HYSTERESIS_BLOCKS_VALUE 3
+#define AEC_DELAY_DELAY_HEADROOM_SAMPLES "delay:delay_headroom_samples"
+#define AEC_DELAY_DELAY_HEADROOM_SAMPLES_VALUE 32
+#define AEC_DELAY_HYSTERESIS_LIMIT_BLOCKS "delay:hysteresis_limit_blocks"
+#define AEC_DELAY_HYSTERESIS_LIMIT_BLOCKS_VALUE 1
 #define AEC_DELAY_FIXED_CAPTURE_DELAY_SAMPLES \
 	"delay:fixed_capture_delay_samples"
 #define AEC_DELAY_FIXED_CAPTURE_DELAY_SAMPLES_VALUE 0
@@ -124,12 +114,8 @@
 #define AEC_ERLE_NUM_SECTIONS_VALUE 1
 
 // EpStrength
-#define AEC_EP_STRENGTH_LF "ep_strength:lf"
-#define AEC_EP_STRENGTH_LF_VALUE 1.f
-#define AEC_EP_STRENGTH_MF "ep_strength:mf"
-#define AEC_EP_STRENGTH_MF_VALUE 1.f
-#define AEC_EP_STRENGTH_HF "ep_strength:hf"
-#define AEC_EP_STRENGTH_HF_VALUE 1.f
+#define AEC_EP_STRENGTH_DEFAULT_GAIN "ep_strength:default_gain"
+#define AEC_EP_STRENGTH_DEFAULT_GAIN_VALUE 1.f
 #define AEC_EP_STRENGTH_DEFAULT_LEN "ep_strength:default_len"
 #define AEC_EP_STRENGTH_DEFAULT_LEN_VALUE 0.83f
 #define AEC_EP_STRENGTH_REVERB_BASED_ON_RENDER \
@@ -175,17 +161,6 @@
 #define AEC_RENDER_LEVELS_POOR_EXCITATION_RENDER_LIMIT_DS8_VALUE 20.f
 
 // Echo removal controls
-#define AEC_ECHO_REMOVAL_CTL_INITIAL_GAIN "echo_removal_control:initial_gain"
-#define AEC_ECHO_REMOVAL_CTL_INITIAL_GAIN_VALUE 0.0f
-#define AEC_ECHO_REMOVAL_CTL_FIRST_NON_ZERO_GAIN \
-	"echo_removal_control:first_non_zero_gain"
-#define AEC_ECHO_REMOVAL_CTL_FIRST_NON_ZERO_GAIN_VALUE 0.001f
-#define AEC_ECHO_REMOVAL_CTL_NON_ZERO_GAIN_BLOCKS \
-	"echo_removal_control:non_zero_gain_blocks"
-#define AEC_ECHO_REMOVAL_CTL_NON_ZERO_GAIN_BLOCKS_VALUE 187
-#define AEC_ECHO_REMOVAL_CTL_FULL_GAIN_BLOCKS \
-	"echo_removal_control:full_gain_blocks"
-#define AEC_ECHO_REMOVAL_CTL_FULL_GAIN_BLOCKS_VALUE 312
 #define AEC_ECHO_REMOVAL_CTL_HAS_CLOCK_DRIFT \
 	"echo_removal_control:has_clock_drift"
 #define AEC_ECHO_REMOVAL_CTL_HAS_CLOCK_DRIFT_VALUE 0

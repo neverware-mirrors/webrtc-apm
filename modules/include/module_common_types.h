@@ -13,6 +13,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <vector>
 
 #include "api/rtp_headers.h"
 #include "common_types.h"  // NOLINT(build/include)
@@ -94,6 +95,17 @@ class KeyFrameRequestSender {
 
  protected:
   virtual ~KeyFrameRequestSender() {}
+};
+
+// Interface used by LossNotificationController to communicate to RtpRtcp.
+// TODO(bugs.webrtc.org/10336): Hook up to RtpRtcp.
+class LossNotificationSender {
+ public:
+  virtual ~LossNotificationSender() {}
+
+  virtual void SendLossNotification(uint16_t last_decoded_seq_num,
+                                    uint16_t last_received_seq_num,
+                                    bool decodability_flag) = 0;
 };
 
 // Used to indicate if a received packet contain a complete NALU (or equivalent)

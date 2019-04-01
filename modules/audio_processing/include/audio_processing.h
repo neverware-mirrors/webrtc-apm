@@ -25,6 +25,7 @@
 #include "absl/types/optional.h"
 #include "api/audio/echo_canceller3_config.h"
 #include "api/audio/echo_control.h"
+#include "api/scoped_refptr.h"
 #include "modules/audio_processing/include/audio_generator.h"
 #include "modules/audio_processing/include/audio_processing_statistics.h"
 #include "modules/audio_processing/include/config.h"
@@ -32,8 +33,7 @@
 #include "rtc_base/arraysize.h"
 #include "rtc_base/deprecation.h"
 #include "rtc_base/platform_file.h"
-#include "rtc_base/refcount.h"
-#include "rtc_base/scoped_ref_ptr.h"
+#include "rtc_base/ref_count.h"
 #include "rtc_base/system/rtc_export.h"
 
 namespace webrtc {
@@ -240,28 +240,38 @@ class AudioProcessing : public rtc::RefCountInterface {
   // by changing the default values in the AudioProcessing::Config struct.
   // The config is applied by passing the struct to the ApplyConfig method.
   struct Config {
-    struct EchoCanceller {
-      bool enabled = false;
-      bool mobile_mode = false;
-      // Recommended not to use. Will be removed in the future.
-      // APM components are not fine-tuned for legacy suppression levels.
-      bool legacy_moderate_suppression_level = false;
-    } echo_canceller;
-
-    struct ResidualEchoDetector {
-      bool enabled = true;
-    } residual_echo_detector;
-
-    struct HighPassFilter {
-      bool enabled = false;
-    } high_pass_filter;
-
     // Enabled the pre-amplifier. It amplifies the capture signal
     // before any other processing is done.
     struct PreAmplifier {
       bool enabled = false;
       float fixed_gain_factor = 1.f;
     } pre_amplifier;
+
+    struct HighPassFilter {
+      bool enabled = false;
+    } high_pass_filter;
+
+    struct EchoCanceller {
+      bool enabled = false;
+      bool mobile_mode = false;
+      // Recommended not to use. Will be removed in the future.
+      // APM components are not fine-tuned for legacy suppression levels.
+      bool legacy_moderate_suppression_level = false;
+      // Recommended not to use. Will be removed in the future.
+      bool use_legacy_aec = false;
+    } echo_canceller;
+
+    // Enables background noise suppression.
+    struct NoiseSuppression {
+      bool enabled = false;
+      enum Level { kLow, kModerate, kHigh, kVeryHigh };
+      Level level = kModerate;
+    } noise_suppression;
+
+    // Enables reporting of |has_voice| in webrtc::AudioProcessingStats.
+    struct VoiceDetection {
+      bool enabled = false;
+    } voice_detection;
 
     // Enables the next generation AGC functionality. This feature replaces the
     // standard methods of gain control in the previous AGC. Enabling this
@@ -282,6 +292,10 @@ class AudioProcessing : public rtc::RefCountInterface {
         float extra_saturation_margin_db = 2.f;
       } adaptive_digital;
     } gain_controller2;
+
+    struct ResidualEchoDetector {
+      bool enabled = true;
+    } residual_echo_detector;
 
     // Enables reporting of |output_rms_dbfs| in webrtc::AudioProcessingStats.
     struct LevelEstimation {

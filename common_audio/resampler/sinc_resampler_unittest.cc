@@ -24,7 +24,7 @@
 #include "common_audio/resampler/sinusoidal_linear_chirp_source.h"
 #include "rtc_base/stringize_macros.h"
 #include "rtc_base/system/arch.h"
-#include "rtc_base/timeutils.h"
+#include "rtc_base/time_utils.h"
 #include "system_wrappers/include/cpu_features_wrapper.h"
 #include "test/gmock.h"
 #include "test/gtest.h"
@@ -340,7 +340,7 @@ static const double kResamplingRMSError = -14.58;
 
 // Thresholds chosen arbitrarily based on what each resampling reported during
 // testing.  All thresholds are in dbFS, http://en.wikipedia.org/wiki/DBFS.
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     SincResamplerTest,
     SincResamplerTest,
     testing::Values(

@@ -202,7 +202,7 @@ TEST_P(RtpPacketizerH264ModeTest,
   EXPECT_THAT(packets, SizeIs(1));
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     PacketMode,
     RtpPacketizerH264ModeTest,
     ::testing::Values(H264PacketizationMode::SingleNalUnit,
@@ -377,6 +377,28 @@ TEST(RtpPacketizerH264Test, MixedStapAFUA) {
               ElementsAre(0, kStapANaluSize));
   EXPECT_THAT(payload.subview(kLengthFieldLength),
               ElementsAreArray(next_fragment, kStapANaluSize));
+}
+
+TEST(RtpPacketizerH264Test, LastFragmentFitsInSingleButNotLastPacket) {
+  RtpPacketizer::PayloadSizeLimits limits;
+  limits.max_payload_len = 1178;
+  limits.first_packet_reduction_len = 0;
+  limits.last_packet_reduction_len = 20;
+  limits.single_packet_reduction_len = 20;
+  // Actual sizes, which triggered this bug.
+  size_t fragments[] = {20, 8, 18, 1161};
+  RTPFragmentationHeader fragmentation = CreateFragmentation(fragments);
+  rtc::Buffer frame = CreateFrame(fragmentation);
+
+  RtpPacketizerH264 packetizer(
+      frame, limits, H264PacketizationMode::NonInterleaved, fragmentation);
+  std::vector<RtpPacketToSend> packets = FetchAllPackets(&packetizer);
+
+  // Last packet has to be of correct size.
+  // Incorrect implementation might miss this constraint and not split the last
+  // fragment in two packets.
+  EXPECT_LE(static_cast<int>(packets.back().payload_size()),
+            limits.max_payload_len - limits.last_packet_reduction_len);
 }
 
 // Splits frame with payload size |frame_payload_size| without fragmentation,
