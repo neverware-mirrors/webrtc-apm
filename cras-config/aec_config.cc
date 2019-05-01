@@ -318,7 +318,7 @@ void aec_config_dump(dictionary *ini)
 			config.filter.shadow_initial.length_blocks,
 			config.filter.shadow_initial.rate,
 			config.filter.shadow_initial.noise_gate);
-	syslog(LOG_ERR, "Filter:    config_change_duration_blocks %d",
+	syslog(LOG_ERR, "Filter:    config_change_duration_blocks %zd",
 			config.filter.config_change_duration_blocks);
 	syslog(LOG_ERR, "    initial_state_seconds %f",
 			config.filter.initial_state_seconds);
@@ -379,14 +379,14 @@ void aec_config_dump(dictionary *ini)
 	syslog(LOG_ERR, "    render_post_window_size %zu nonlinear_hold %f",
 			config.echo_model.render_post_window_size,
 			config.echo_model.nonlinear_hold);
-	syslog(LOG_ERR, "    render_pre_window_size_init %u, "
-			"render_post_window_size_init %u",
+	syslog(LOG_ERR, "    render_pre_window_size_init %zu, "
+			"render_post_window_size_init %zu",
 			config.echo_model.render_pre_window_size_init,
 			config.echo_model.render_post_window_size_init);
 	syslog(LOG_ERR, "    nonlinear_release %f",
 			config.echo_model.nonlinear_release);
 	syslog(LOG_ERR, "Suppressor:");
-	syslog(LOG_ERR, "    nearend_average_blocks %u",
+	syslog(LOG_ERR, "    nearend_average_blocks %zu",
 			config.suppressor.nearend_average_blocks);
 	syslog(LOG_ERR, "    Normal tuning, mask_lf %f %f %f",
 			config.suppressor.normal_tuning.mask_lf.enr_transparent,
@@ -430,6 +430,6 @@ void aec_config_dump(dictionary *ini)
 	syslog(LOG_ERR, "    floor_first_increase %f, enforce_transparent %d",
 			config.suppressor.floor_first_increase,
 			config.suppressor.enforce_transparent);
-	syslog(LOG_ERR, "    enforce_empty_higher_bands %f",
-			config.suppressor.enforce_empty_higher_bands);
+	syslog(LOG_ERR, "    enforce_empty_higher_bands %d",
+			(int) config.suppressor.enforce_empty_higher_bands);
 }
