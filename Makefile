@@ -46,6 +46,6 @@ CXX_LIBRARY(libwebrtc_apm.so): LDLIBS += \
 	absl.pic.a \
 	cras-config.pic.a \
 	$(call get_pc_libs,$(webrtc_apm_PC_DEPS)) \
-	-liniparser
+	-liniparser -pthread
 
 all: CXX_LIBRARY(libwebrtc_apm.so)
