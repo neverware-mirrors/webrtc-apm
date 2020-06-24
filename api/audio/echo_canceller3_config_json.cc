@@ -121,9 +121,16 @@ void Aec3ConfigFromJsonString(absl::string_view json_string,
   *parsing_successful = true;
 
   Json::Value root;
-  bool success = Json::Reader().parse(std::string(json_string), root);
+  Json::CharReaderBuilder builder;
+  std::unique_pre<Json::CharReader> reader(builder.newCharReader());
+  std::string error;
+
+  bool success = reader->parse(json_string.data(),
+                               json_string.data() + json_string.size(),
+                               &root, &error);
   if (!success) {
-    RTC_LOG(LS_ERROR) << "Incorrect JSON format: " << json_string;
+    RTC_LOG(LS_ERROR) << "Incorrect JSON format: " << json_string
+                      << " error: " << error;
     *parsing_successful = false;
     return;
   }
